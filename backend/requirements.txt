@@ -1,0 +1,17 @@
+fastapi
+uvicorn[standard]
+langchain
+langchain-openai
+openai
+httpx
+redis
+sqlalchemy
+alembic
+psycopg2-binary
+celery
+python-dotenv
+pydantic-settings
+pytest
+pytest-asyncio
+websockets
+feedparser

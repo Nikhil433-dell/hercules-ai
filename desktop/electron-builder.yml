@@ -1,0 +1,10 @@
+appId: com.herculesai.desktop
+productName: Hercules AI
+directories:
+  output: release
+mac:
+  target: dmg
+win:
+  target: nsis
+linux:
+  target: AppImage

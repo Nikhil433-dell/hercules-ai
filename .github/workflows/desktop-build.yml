@@ -1,0 +1,41 @@
+name: Desktop Build
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "desktop/**"
+  pull_request:
+    branches: [main]
+    paths:
+      - "desktop/**"
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: |
+          cd desktop
+          npm ci
+
+      - name: Build
+        run: |
+          cd desktop
+          npm run build
+
+      # TODO: Add electron-builder packaging step
+      # - name: Package
+      #   run: |
+      #     cd desktop
+      #     npx electron-builder --publish never
