@@ -20,8 +20,8 @@
 |---------|-------------|
 | **Auto-trigger** | Detects laptop open/unlock → activates agent |
 | **AI Summarizer** | Uses LLM to generate concise, categorized news briefs |
-| **Pinned Side Panel** | Always-on-top transparent widget (~300px wide) |
-| **Minimize to Icon** | Floating draggable circle icon (like a chatbot bubble) |
+| **Pinned Side Panel** | Always-on-top transparent widget (~300px wide) | design needs to be configured for MacOS
+| **Minimize to Icon** | Floating draggable circle icon (like a chatbot bubble) | 
 | **2-Min Auto-Hide** | Panel auto-minimizes after 2 minutes |
 | **Categories** | Tech, World, Finance, Sports — user configurable |
 | **Docker Deployment** | Containerized backend, easy to ship anywhere |
