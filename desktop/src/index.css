@@ -2,20 +2,20 @@
    DESIGN TOKENS
 ────────────────────────────────────────────── */
 :root {
-  --bg-panel:    rgba(10, 10, 18, 0.92);
-  --bg-card:     rgba(22, 22, 36, 0.85);
-  --bg-hover:    rgba(35, 35, 58, 0.9);
-  --border:      rgba(255, 255, 255, 0.07);
-  --border-glow: rgba(99, 102, 241, 0.25);
-  --text-primary:   #f1f5f9;
-  --text-secondary: #94a3b8;
-  --text-muted:     #475569;
-  --accent-purple: #6366f1;
-  --accent-green:  #10b981;
+  --bg-panel:    rgba(246, 246, 246, 0.88);
+  --bg-card:     rgba(255, 255, 255, 0.75);
+  --bg-hover:    rgba(0, 0, 0, 0.04);
+  --border:      rgba(0, 0, 0, 0.08);
+  --border-glow: rgba(0, 122, 255, 0.15);
+  --text-primary:   #1d1d1f;
+  --text-secondary: #6e6e73;
+  --text-muted:     #86868b;
+  --accent-blue:   #007AFF;
+  --accent-green:  #34C759;
   --radius-card:  12px;
   --radius-pill:   20px;
-  --shadow-panel: 0 8px 40px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255,255,255,0.05);
-  --font: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --shadow-panel: 0 10px 40px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(0, 0, 0, 0.03);
+  --font: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', sans-serif;
 }
 
 /* ──────────────────────────────────────────────
@@ -41,8 +41,8 @@ html, body, #root {
 /* Scrollbar */
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.22); }
+::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.12); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.22); }
 
 button { cursor: pointer; border: none; background: none; font-family: var(--font); }
 a { text-decoration: none; }

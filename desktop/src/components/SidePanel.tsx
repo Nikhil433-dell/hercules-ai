@@ -80,6 +80,7 @@ const MOCK_NEWS: NewsItem[] = [
 
 export default function SidePanel({ onMinimize }: SidePanelProps) {
   const [activeCategory, setActiveCategory] = useState('All');
+  const [activeTab, setActiveTab] = useState<'news' | 'earnings'>('news');
   const [news, setNews] = useState<NewsItem[]>(MOCK_NEWS);
   const [loading, setLoading] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
@@ -164,45 +165,71 @@ export default function SidePanel({ onMinimize }: SidePanelProps) {
         <Settings onClose={() => setShowSettings(false)} />
       ) : (
         <>
-          {/* Category pills */}
-          <div className="category-scroll">
-            {CATEGORIES.map((cat) => (
-              <button
-                key={cat}
-                className={`cat-pill ${activeCategory === cat ? 'cat-pill--active' : ''}`}
-                onClick={() => setActiveCategory(cat)}
-              >
-                {cat}
-              </button>
-            ))}
+          {/* Tab bar */}
+          <div className="tab-bar">
+            <button
+              className={`tab-btn ${activeTab === 'news' ? 'tab-btn--active' : ''}`}
+              onClick={() => setActiveTab('news')}
+            >
+              📰 News
+            </button>
+            <button
+              className={`tab-btn ${activeTab === 'earnings' ? 'tab-btn--active' : ''}`}
+              onClick={() => setActiveTab('earnings')}
+            >
+              📈 Earnings
+            </button>
           </div>
 
-          {/* AI summary badge */}
-          <div className="ai-badge">
-            <span className="ai-dot" />
-            <span>AI-summarized · {filtered.length} stories</span>
-          </div>
-
-          {/* News feed */}
-          <div className="news-feed">
-            {loading ? (
-              <div className="skeleton-list">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="skeleton-card">
-                    <div className="skeleton-line skeleton-line--title" />
-                    <div className="skeleton-line skeleton-line--body" />
-                    <div className="skeleton-line skeleton-line--body short" />
-                  </div>
+          {activeTab === 'news' ? (
+            <>
+              {/* Category pills */}
+              <div className="category-scroll">
+                {CATEGORIES.map((cat) => (
+                  <button
+                    key={cat}
+                    className={`cat-pill ${activeCategory === cat ? 'cat-pill--active' : ''}`}
+                    onClick={() => setActiveCategory(cat)}
+                  >
+                    {cat}
+                  </button>
                 ))}
               </div>
-            ) : filtered.length === 0 ? (
-              <div className="empty-state">No stories in this category</div>
-            ) : (
-              filtered.map((item, idx) => (
-                <NewsCard key={item.id} item={item} index={idx} />
-              ))
-            )}
-          </div>
+
+              {/* AI summary badge */}
+              <div className="ai-badge">
+                <span className="ai-dot" />
+                <span>AI-summarized · {filtered.length} stories</span>
+              </div>
+
+              {/* News feed */}
+              <div className="news-feed">
+                {loading ? (
+                  <div className="skeleton-list">
+                    {[1, 2, 3].map((i) => (
+                      <div key={i} className="skeleton-card">
+                        <div className="skeleton-line skeleton-line--title" />
+                        <div className="skeleton-line skeleton-line--body" />
+                        <div className="skeleton-line skeleton-line--body short" />
+                      </div>
+                    ))}
+                  </div>
+                ) : filtered.length === 0 ? (
+                  <div className="empty-state">No stories in this category</div>
+                ) : (
+                  filtered.map((item, idx) => (
+                    <NewsCard key={item.id} item={item} index={idx} />
+                  ))
+                )}
+              </div>
+            </>
+          ) : (
+            <div className="earnings-placeholder">
+              <div className="earnings-placeholder-icon">📈</div>
+              <div className="earnings-placeholder-title">Earnings Intelligence</div>
+              <div className="earnings-placeholder-text">AI-powered earnings predictions coming soon</div>
+            </div>
+          )}
 
           {/* Footer */}
           <div className="panel-footer">

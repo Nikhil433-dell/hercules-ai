@@ -23,8 +23,7 @@ let tray: Tray | null = null;
 let isExpanded = true;
 
 const PANEL_WIDTH = 360;
-const PANEL_INITIAL_HEIGHT = 60;  // Starts tiny — just the header
-const PANEL_MAX_HEIGHT = 680;
+const PANEL_HEIGHT = 680;
 const PANEL_MARGIN = 8;           // Gap from screen edges
 
 function getTopRightOrigin() {
@@ -43,7 +42,7 @@ const createWindow = (): void => {
     x: origin.x,
     y: origin.y,
     width: PANEL_WIDTH,
-    height: PANEL_INITIAL_HEIGHT,
+    height: PANEL_HEIGHT,
     frame: false,
     transparent: true,
     alwaysOnTop: true,
@@ -78,9 +77,8 @@ const createWindow = (): void => {
   const expandPanel = () => {
     if (!mainWindow) return;
     const origin = getTopRightOrigin();
-    // Start at initial compact height — renderer will grow it via resize-panel
     mainWindow.setBounds(
-      { x: origin.x, y: origin.y, width: PANEL_WIDTH, height: PANEL_INITIAL_HEIGHT },
+      { x: origin.x, y: origin.y, width: PANEL_WIDTH, height: PANEL_HEIGHT },
       true,
     );
     mainWindow.show();
@@ -105,16 +103,6 @@ const createWindow = (): void => {
   ipcMain.on('minimize-panel', () => collapsePanel());
   ipcMain.on('expand-panel', () => expandPanel());
 
-  // Dynamic height resize — renderer tells us how tall the content is
-  ipcMain.on('resize-panel', (_event, height: number) => {
-    if (!mainWindow || !isExpanded) return;
-    const clampedHeight = Math.min(Math.max(height, PANEL_INITIAL_HEIGHT), PANEL_MAX_HEIGHT);
-    const origin = getTopRightOrigin();
-    mainWindow.setBounds(
-      { x: origin.x, y: origin.y, width: PANEL_WIDTH, height: clampedHeight },
-      true,
-    );
-  });
 
   // Detect system wake/unlock → show panel
   powerMonitor.on('unlock-screen', () => {
