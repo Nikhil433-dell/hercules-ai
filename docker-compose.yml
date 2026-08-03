@@ -1,7 +1,5 @@
-version: "3.9"
-
 services:
-  # --- Backend API Server ---
+  # --- 1. Backend API Server ---
   backend:
     build:
       context: ./backend
@@ -11,16 +9,67 @@ services:
       - "8000:8000"
     env_file:
       - ./backend/.env
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=postgresql://hercules:hercules_dev@postgres:5432/hercules_ai
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+      - CHROMADB_URL=http://chromadb:8000
     depends_on:
       - redis
       - postgres
+      - chromadb
     volumes:
       - ./backend/app:/app/app  # Hot reload in dev
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: unless-stopped
     networks:
       - hercules-network
 
-  # --- Redis Cache ---
+  # --- 2. Celery Worker (Background Tasks) ---
+  celery_worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: hercules-celery-worker
+    command: celery -A app.tasks.celery_app worker --loglevel=info
+    env_file:
+      - ./backend/.env
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=postgresql://hercules:hercules_dev@postgres:5432/hercules_ai
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+    depends_on:
+      - redis
+      - postgres
+    volumes:
+      - ./backend/app:/app/app
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    networks:
+      - hercules-network
+
+  # --- 3. Celery Beat (Scheduled Task Scheduler) ---
+  celery_beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: hercules-celery-beat
+    command: celery -A app.tasks.celery_app beat --loglevel=info
+    env_file:
+      - ./backend/.env
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - redis
+    volumes:
+      - ./backend/app:/app/app
+    restart: unless-stopped
+    networks:
+      - hercules-network
+
+  # --- 4. Redis Cache & Message Broker ---
   redis:
     image: redis:7-alpine
     container_name: hercules-redis
@@ -32,7 +81,7 @@ services:
     networks:
       - hercules-network
 
-  # --- PostgreSQL Database ---
+  # --- 5. PostgreSQL Database ---
   postgres:
     image: postgres:16-alpine
     container_name: hercules-postgres
@@ -48,9 +97,22 @@ services:
     networks:
       - hercules-network
 
+  # --- 6. ChromaDB Vector Database (RAG) ---
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: hercules-chromadb
+    ports:
+      - "8001:8000"
+    volumes:
+      - chroma-data:/chroma/chroma
+    restart: unless-stopped
+    networks:
+      - hercules-network
+
 volumes:
   redis-data:
   postgres-data:
+  chroma-data:
 
 networks:
   hercules-network:
