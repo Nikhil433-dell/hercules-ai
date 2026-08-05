@@ -1,45 +1,72 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import './Settings.css';
+
+export interface UserSettings {
+  categories: string[];
+  refreshInterval: number;
+  autoHideMinutes: number;
+}
+
+export const DEFAULT_SETTINGS: UserSettings = {
+  categories: ['Tech', 'Finance', 'World', 'Sports'],
+  refreshInterval: 15,
+  autoHideMinutes: 2,
+};
 
 interface SettingsProps {
   onClose: () => void;
+  currentSettings: UserSettings;
+  onSaveSettings: (newSettings: UserSettings) => void;
 }
 
 const ALL_CATEGORIES = ['Tech', 'Finance', 'World', 'Sports'];
 
-export default function Settings({ onClose }: SettingsProps) {
-  const [enabledCategories, setEnabledCategories] = useState<string[]>(ALL_CATEGORIES);
-  const [refreshInterval, setRefreshInterval] = useState(15);
-  const [autoHideMinutes, setAutoHideMinutes] = useState(2);
-  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+export default function Settings({ onClose, currentSettings, onSaveSettings }: SettingsProps) {
+  const [categories, setCategories] = useState<string[]>(currentSettings.categories);
+  const [refreshInterval, setRefreshInterval] = useState<number>(currentSettings.refreshInterval);
+  const [autoHideMinutes, setAutoHideMinutes] = useState<number>(currentSettings.autoHideMinutes);
 
   const toggleCategory = (cat: string) => {
-    setEnabledCategories((prev) =>
+    setCategories((prev) =>
       prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat],
     );
+  };
+
+  const handleSave = () => {
+    const updated: UserSettings = {
+      categories,
+      refreshInterval,
+      autoHideMinutes,
+    };
+    onSaveSettings(updated);
+    onClose();
   };
 
   return (
     <div className="settings-root">
       <div className="settings-header">
         <h2 className="settings-title">Settings</h2>
-        <button className="icon-btn" onClick={onClose}>✕</button>
+        <button className="icon-btn" onClick={onClose} title="Close">✕</button>
       </div>
 
       <div className="settings-section">
-        <h3 className="settings-section-title">News Categories</h3>
+        <h3 className="settings-section-title">Enabled Categories</h3>
         <div className="settings-toggle-list">
-          {ALL_CATEGORIES.map((cat) => (
-            <label key={cat} className="settings-toggle-row">
-              <span>{cat}</span>
+          {ALL_CATEGORIES.map((cat) => {
+            const isOn = categories.includes(cat);
+            return (
               <div
-                className={`toggle-switch ${enabledCategories.includes(cat) ? 'toggle-switch--on' : ''}`}
+                key={cat}
+                className="settings-toggle-row"
                 onClick={() => toggleCategory(cat)}
               >
-                <div className="toggle-thumb" />
+                <span>{cat}</span>
+                <div className={`toggle-switch ${isOn ? 'toggle-switch--on' : ''}`}>
+                  <div className="toggle-thumb" />
+                </div>
               </div>
-            </label>
-          ))}
+            );
+          })}
         </div>
       </div>
 
@@ -75,26 +102,8 @@ export default function Settings({ onClose }: SettingsProps) {
         </div>
       </div>
 
-      <div className="settings-section">
-        <h3 className="settings-section-title">Theme</h3>
-        <div className="theme-toggle">
-          <button
-            className={`theme-btn ${theme === 'dark' ? 'theme-btn--active' : ''}`}
-            onClick={() => setTheme('dark')}
-          >
-            🌙 Dark
-          </button>
-          <button
-            className={`theme-btn ${theme === 'light' ? 'theme-btn--active' : ''}`}
-            onClick={() => setTheme('light')}
-          >
-            ☀️ Light
-          </button>
-        </div>
-      </div>
-
-      <button className="settings-save-btn" onClick={onClose}>
-        Save & Close
+      <button className="settings-save-btn" onClick={handleSave}>
+        Save & Apply
       </button>
     </div>
   );

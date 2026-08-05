@@ -6,25 +6,20 @@ interface FloatingIconProps {
 }
 
 export default function FloatingIcon({ onExpand }: FloatingIconProps) {
-  const [pulse, setPulse] = useState(false);
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
     requestAnimationFrame(() => setVisible(true));
-    // Pulse every 8s to remind user
-    const interval = setInterval(() => setPulse((p) => !p), 8000);
-    return () => clearInterval(interval);
   }, []);
 
   return (
     <div className={`floating-root ${visible ? 'floating-visible' : ''}`}>
       <button
-        className={`floating-btn ${pulse ? 'floating-btn--pulse' : ''}`}
+        className="floating-btn"
         onClick={onExpand}
         title="Open Hercules AI"
       >
-        <span className="floating-icon-inner">⚡</span>
-        <div className="floating-ring" />
+        <span className="floating-icon-inner">H</span>
       </button>
     </div>
   );

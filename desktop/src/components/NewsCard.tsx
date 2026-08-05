@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import './NewsCard.css';
 
-interface NewsItem {
+export interface NewsItem {
   id: string;
   title: string;
   summary: string;
@@ -17,13 +17,6 @@ interface NewsCardProps {
   index: number;
 }
 
-const CATEGORY_COLORS: Record<string, string> = {
-  Tech: '#6366f1',
-  Finance: '#10b981',
-  World: '#f59e0b',
-  Sports: '#ef4444',
-};
-
 function timeAgo(iso: string): string {
   const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
   if (diff < 60) return `${diff}s ago`;
@@ -36,25 +29,23 @@ export default function NewsCard({ item, index }: NewsCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  const accentColor = CATEGORY_COLORS[item.category] ?? '#818cf8';
+  const handleOpenArticle = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (item.url && item.url !== '#') {
+      (window as any).electronAPI?.openExternal(item.url);
+    }
+  };
 
   return (
     <div
       className="news-card"
-      style={{
-        animationDelay: `${index * 80}ms`,
-        '--accent': accentColor,
-      } as React.CSSProperties}
+      style={{ animationDelay: `${index * 50}ms` }}
     >
-      {/* Category accent bar */}
-      <div className="card-accent-bar" style={{ background: accentColor }} />
-
       <div className="card-body">
         {/* Meta row */}
         <div className="card-meta">
-          <span className="card-cat-pill" style={{ color: accentColor, borderColor: accentColor }}>
-            {item.category}
-          </span>
+          <span className="card-cat-pill">{item.category}</span>
           <span className="card-source">{item.source}</span>
           <span className="card-time">{timeAgo(item.publishedAt)}</span>
         </div>
@@ -64,33 +55,34 @@ export default function NewsCard({ item, index }: NewsCardProps) {
           {item.title}
         </h3>
 
-        {/* Summary (expandable) */}
-        <div className={`card-summary ${expanded ? 'card-summary--expanded' : ''}`}>
-          <p>{item.summary}</p>
+        {/* Drop Toggle Header */}
+        <div className="card-drop-bar" onClick={() => setExpanded(!expanded)}>
+          <span className="drop-label">{expanded ? 'Collapse Summary ▲' : 'AI Summary Drop ▼'}</span>
+          <span className="read-time-tag">{item.readTime} min read</span>
         </div>
 
-        {/* Actions */}
-        <div className="card-actions">
-          <button className="card-btn card-btn--expand" onClick={() => setExpanded(!expanded)}>
-            {expanded ? 'Show less ▲' : 'Read more ▼'}
-          </button>
-          <div className="card-right-actions">
-            <button
-              className={`card-btn card-btn--save ${saved ? 'saved' : ''}`}
-              onClick={() => setSaved(!saved)}
-              title={saved ? 'Saved' : 'Save article'}
-            >
-              {saved ? '★' : '☆'}
-            </button>
-            <a
-              className="card-btn card-btn--link"
-              href={item.url}
-              target="_blank"
-              rel="noreferrer"
-              title="Open article"
-            >
-              ↗
-            </a>
+        {/* Expandable Drop Container */}
+        <div className={`card-summary-drop ${expanded ? 'card-summary-drop--open' : ''}`}>
+          <div className="summary-content-inner">
+            <p className="summary-text">{item.summary}</p>
+            
+            <div className="summary-drop-actions">
+              <button
+                className={`card-btn card-btn--save ${saved ? 'saved' : ''}`}
+                onClick={() => setSaved(!saved)}
+                title={saved ? 'Saved for later' : 'Save article'}
+              >
+                {saved ? '★ Saved' : '☆ Bookmark'}
+              </button>
+
+              <button
+                className="card-btn card-btn--external"
+                onClick={handleOpenArticle}
+                title={`Open exact link on ${item.source} in Chrome`}
+              >
+                Read Full Story on {item.source} ↗
+              </button>
+            </div>
           </div>
         </div>
       </div>

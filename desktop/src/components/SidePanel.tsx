@@ -1,24 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
-import NewsCard from './NewsCard';
-import Settings from './Settings';
+import NewsCard, { NewsItem } from './NewsCard';
+import Settings, { UserSettings, DEFAULT_SETTINGS } from './Settings';
 import './SidePanel.css';
-
-interface NewsItem {
-  id: string;
-  title: string;
-  summary: string;
-  category: string;
-  source: string;
-  url: string;
-  publishedAt: string;
-  readTime: number;
-}
 
 interface SidePanelProps {
   onMinimize: () => void;
 }
 
-const CATEGORIES = ['All', 'Tech', 'Finance', 'World', 'Sports'];
+const ALL_CATEGORIES = ['Tech', 'Finance', 'World', 'Sports'];
 
 const MOCK_NEWS: NewsItem[] = [
   {
@@ -28,7 +17,7 @@ const MOCK_NEWS: NewsItem[] = [
       'Data centers globally are racing to expand GPU capacity as inference workloads from deployed LLMs have exceeded training compute for the first time. NVIDIA, AMD, and custom silicon from hyperscalers are all benefiting.',
     category: 'Tech',
     source: 'TechCrunch',
-    url: '#',
+    url: 'https://techcrunch.com/2026/07/29/ai-chips-inference-demand-doubles-q3/',
     publishedAt: new Date(Date.now() - 14 * 60 * 1000).toISOString(),
     readTime: 3,
   },
@@ -39,7 +28,7 @@ const MOCK_NEWS: NewsItem[] = [
       'Fed Chair Powell indicated the committee is comfortable with the current trajectory, noting inflation has cooled to 2.3%. Markets priced in a 75% probability of a 25bps cut at the November meeting.',
     category: 'Finance',
     source: 'Reuters',
-    url: '#',
+    url: 'https://www.reuters.com/markets/us/fed-signals-rate-cut-inflation-cools-2026-07-29/',
     publishedAt: new Date(Date.now() - 52 * 60 * 1000).toISOString(),
     readTime: 2,
   },
@@ -50,7 +39,7 @@ const MOCK_NEWS: NewsItem[] = [
       'Leaked internal benchmarks suggest the upcoming Llama 4 Scout model outperforms GPT-4o on reasoning tasks at a fraction of the compute cost, potentially reshaping the local inference landscape.',
     category: 'Tech',
     source: 'The Verge',
-    url: '#',
+    url: 'https://www.theverge.com/2026/7/29/llama-4-scout-benchmarks-leak-reasoning-ai/',
     publishedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
     readTime: 4,
   },
@@ -61,7 +50,7 @@ const MOCK_NEWS: NewsItem[] = [
       'Apple reported EPS of $1.53 vs. the $1.42 consensus estimate. iPhone revenue came in slightly below expectations while the Services segment hit a new all-time high, pushing the stock up 4% in after-hours trading.',
     category: 'Finance',
     source: 'Bloomberg',
-    url: '#',
+    url: 'https://www.bloomberg.com/news/articles/2026-07-29/apple-q3-earnings-beat-services-revenue-record/',
     publishedAt: new Date(Date.now() - 3.5 * 60 * 60 * 1000).toISOString(),
     readTime: 3,
   },
@@ -72,35 +61,49 @@ const MOCK_NEWS: NewsItem[] = [
       '192 nations signed a landmark accord establishing a global carbon price floor of $40/tonne by 2027. Analysts say the deal could unlock $2T in clean-energy investment and reshape fossil fuel valuations.',
     category: 'World',
     source: 'BBC News',
-    url: '#',
+    url: 'https://www.bbc.com/news/articles/un-climate-summit-carbon-pricing-accord-2026/',
     publishedAt: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
     readTime: 4,
   },
 ];
 
+function loadSavedSettings(): UserSettings {
+  try {
+    const raw = localStorage.getItem('hercules_user_settings');
+    if (raw) return JSON.parse(raw);
+  } catch (e) {
+    console.error('Failed to load settings from localStorage', e);
+  }
+  return DEFAULT_SETTINGS;
+}
+
 export default function SidePanel({ onMinimize }: SidePanelProps) {
+  const [userSettings, setUserSettings] = useState<UserSettings>(loadSavedSettings);
   const [activeCategory, setActiveCategory] = useState('All');
   const [activeTab, setActiveTab] = useState<'news' | 'earnings'>('news');
-  const [news, setNews] = useState<NewsItem[]>(MOCK_NEWS);
+  const [news] = useState<NewsItem[]>(MOCK_NEWS);
   const [loading, setLoading] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
   const [visible, setVisible] = useState(false);
-  const AUTO_HIDE_SECONDS = 120;
-  const [timeLeft, setTimeLeft] = useState(AUTO_HIDE_SECONDS);
+  const [briefingExpanded, setBriefingExpanded] = useState(true);
+
+  const autoHideSeconds = userSettings.autoHideMinutes * 60;
+  const [timeLeft, setTimeLeft] = useState(autoHideSeconds);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Slide-in on mount
+  useEffect(() => {
+    setTimeLeft(userSettings.autoHideMinutes * 60);
+  }, [userSettings.autoHideMinutes]);
+
   useEffect(() => {
     requestAnimationFrame(() => setVisible(true));
   }, []);
 
-  // Simulate API fetch
   useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 1200);
+    const t = setTimeout(() => setLoading(false), 700);
     return () => clearTimeout(t);
   }, []);
 
-  // Countdown timer
   useEffect(() => {
     timerRef.current = setInterval(() => {
       setTimeLeft((prev) => {
@@ -117,22 +120,32 @@ export default function SidePanel({ onMinimize }: SidePanelProps) {
 
   const handleMinimize = () => {
     setVisible(false);
-    setTimeout(onMinimize, 350);
+    setTimeout(onMinimize, 300);
   };
 
-  const filtered =
-    activeCategory === 'All'
-      ? news
-      : news.filter((n) => n.category === activeCategory);
+  const handleSaveSettings = (newSettings: UserSettings) => {
+    setUserSettings(newSettings);
+    try {
+      localStorage.setItem('hercules_user_settings', JSON.stringify(newSettings));
+    } catch (e) {
+      console.error('Failed to save settings to localStorage', e);
+    }
+  };
 
-  const timerPercent = (timeLeft / AUTO_HIDE_SECONDS) * 100;
+  const availableCategories = ['All', ...ALL_CATEGORIES.filter((c) => userSettings.categories.includes(c))];
+
+  const filtered = news
+    .filter((n) => userSettings.categories.includes(n.category))
+    .filter((n) => activeCategory === 'All' || n.category === activeCategory);
+
+  const timerPercent = (timeLeft / autoHideSeconds) * 100;
 
   return (
     <div className={`panel-root ${visible ? 'panel-visible' : ''}`}>
       {/* Header */}
       <div className="panel-header">
         <div className="panel-logo">
-          <span className="logo-icon">⚡</span>
+          <div className="logo-badge">H</div>
           <span className="logo-text">Hercules AI</span>
         </div>
         <div className="panel-header-actions">
@@ -141,14 +154,14 @@ export default function SidePanel({ onMinimize }: SidePanelProps) {
             onClick={() => setShowSettings(!showSettings)}
             title="Settings"
           >
-            ⚙️
+            ⚙
           </button>
           <button
             className="icon-btn minimize-btn"
             onClick={handleMinimize}
             title="Minimize"
           >
-            ─
+            ✕
           </button>
         </div>
       </div>
@@ -162,7 +175,11 @@ export default function SidePanel({ onMinimize }: SidePanelProps) {
       </div>
 
       {showSettings ? (
-        <Settings onClose={() => setShowSettings(false)} />
+        <Settings
+          onClose={() => setShowSettings(false)}
+          currentSettings={userSettings}
+          onSaveSettings={handleSaveSettings}
+        />
       ) : (
         <>
           {/* Tab bar */}
@@ -171,21 +188,51 @@ export default function SidePanel({ onMinimize }: SidePanelProps) {
               className={`tab-btn ${activeTab === 'news' ? 'tab-btn--active' : ''}`}
               onClick={() => setActiveTab('news')}
             >
-              📰 News
+              News
             </button>
             <button
               className={`tab-btn ${activeTab === 'earnings' ? 'tab-btn--active' : ''}`}
               onClick={() => setActiveTab('earnings')}
             >
-              📈 Earnings
+              Earnings
             </button>
           </div>
 
           {activeTab === 'news' ? (
             <>
+              {/* Major AI Briefing Executive Container */}
+              <div className="executive-briefing-box">
+                <div className="briefing-box-header" onClick={() => setBriefingExpanded(!briefingExpanded)}>
+                  <div className="briefing-title-group">
+                    <span className="briefing-icon">H</span>
+                    <span className="briefing-title">AI Briefing Context</span>
+                  </div>
+                  <button className="briefing-toggle-btn">
+                    {briefingExpanded ? 'Hide Context ▲' : 'Show Context ▼'}
+                  </button>
+                </div>
+
+                {briefingExpanded && (
+                  <div className="briefing-box-body">
+                    <div className="briefing-section">
+                      <div className="briefing-label">Why You're Seeing These</div>
+                      <p className="briefing-desc">
+                        Synthesized on system wake to prioritize major shifts in AI compute infrastructure, Fed rate policy, and global clean energy markets based on your active preferences.
+                      </p>
+                    </div>
+                    <div className="briefing-section">
+                      <div className="briefing-label">Why They're Worth Reading</div>
+                      <p className="briefing-desc">
+                        AI inference demand surpassing training compute signals key hardware supply chain re-allocations, while Fed signals directly impact tech valuations this quarter.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {/* Category pills */}
               <div className="category-scroll">
-                {CATEGORIES.map((cat) => (
+                {availableCategories.map((cat) => (
                   <button
                     key={cat}
                     className={`cat-pill ${activeCategory === cat ? 'cat-pill--active' : ''}`}
@@ -199,7 +246,7 @@ export default function SidePanel({ onMinimize }: SidePanelProps) {
               {/* AI summary badge */}
               <div className="ai-badge">
                 <span className="ai-dot" />
-                <span>AI-summarized · {filtered.length} stories</span>
+                <span>AI Summarized · {filtered.length} stories</span>
               </div>
 
               {/* News feed */}
@@ -225,7 +272,7 @@ export default function SidePanel({ onMinimize }: SidePanelProps) {
             </>
           ) : (
             <div className="earnings-placeholder">
-              <div className="earnings-placeholder-icon">📈</div>
+              <div className="earnings-placeholder-icon">H</div>
               <div className="earnings-placeholder-title">Earnings Intelligence</div>
               <div className="earnings-placeholder-text">AI-powered earnings predictions coming soon</div>
             </div>

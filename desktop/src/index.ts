@@ -7,6 +7,7 @@ import {
   nativeImage,
   powerMonitor,
   screen,
+  shell,
 } from 'electron';
 import * as path from 'path';
 
@@ -24,7 +25,7 @@ let isExpanded = true;
 
 const PANEL_WIDTH = 360;
 const PANEL_HEIGHT = 680;
-const PANEL_MARGIN = 8;           // Gap from screen edges
+const PANEL_MARGIN = 8; // Gap from screen edges
 
 function getTopRightOrigin() {
   const display = screen.getPrimaryDisplay();
@@ -58,12 +59,20 @@ const createWindow = (): void => {
 
   mainWindow.loadURL(MAIN_WINDOW_WEBPACK_ENTRY);
 
+  // Open external links in default browser (Chrome/Safari)
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
+      shell.openExternal(url);
+    }
+    return { action: 'deny' };
+  });
+
   // Open DevTools in development
   if (process.env.NODE_ENV === 'development') {
     mainWindow.webContents.openDevTools({ mode: 'detach' });
   }
 
-  // Auto-minimize after 2 minutes
+  // Auto-minimize timer
   let autoHideTimer: ReturnType<typeof setTimeout> | null = null;
   const startAutoHide = () => {
     if (autoHideTimer) clearTimeout(autoHideTimer);
@@ -90,9 +99,9 @@ const createWindow = (): void => {
     if (!mainWindow) return;
     const display = screen.getPrimaryDisplay();
     const { width } = display.workAreaSize;
-    // Shrink to floating circle in top-right (near menu bar icons)
+    // Shrink to floating square in top-right
     mainWindow.setBounds(
-      { x: width - 72 - PANEL_MARGIN, y: display.workArea.y + PANEL_MARGIN, width: 60, height: 60 },
+      { x: width - 52 - PANEL_MARGIN, y: display.workArea.y + PANEL_MARGIN, width: 44, height: 44 },
       true,
     );
     isExpanded = false;
@@ -102,7 +111,11 @@ const createWindow = (): void => {
   // IPC handlers
   ipcMain.on('minimize-panel', () => collapsePanel());
   ipcMain.on('expand-panel', () => expandPanel());
-
+  ipcMain.on('open-external', (_event, url: string) => {
+    if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
+      shell.openExternal(url);
+    }
+  });
 
   // Detect system wake/unlock → show panel
   powerMonitor.on('unlock-screen', () => {

@@ -1,42 +1,30 @@
 /* ──────────────────────────────────────────────
-   NEWS CARD
+   NEWS CARD — Minimalist Container with Drop-down Summary
 ────────────────────────────────────────────── */
 .news-card {
   position: relative;
   background: var(--bg-card);
   border-radius: var(--radius-card);
-  border: 1px solid rgba(0,0,0,0.06);
+  border: 1px solid var(--border);
   overflow: hidden;
   display: flex;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.02);
-  transition: border-color 0.2s, box-shadow 0.2s, transform 0.15s;
-
-  /* Staggered entrance */
-  animation: card-enter 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03);
+  transition: border-color 0.15s, box-shadow 0.15s;
+  animation: card-enter 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .news-card:hover {
-  border-color: rgba(0,0,0,0.12);
-  box-shadow: 0 6px 16px rgba(0,0,0,0.06);
-  transform: translateY(-1px);
+  border-color: var(--border-strong);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.06);
 }
 
 @keyframes card-enter {
-  from { opacity: 0; transform: translateY(10px); }
+  from { opacity: 0; transform: translateY(4px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 
-/* ── Left accent bar ── */
-.card-accent-bar {
-  width: 3px;
-  flex-shrink: 0;
-  border-radius: 3px 0 0 3px;
-  opacity: 0.9;
-}
-
-/* ── Card body ── */
 .card-body {
-  padding: 12px 12px 10px;
+  padding: 12px 14px;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -48,24 +36,25 @@
 .card-meta {
   display: flex;
   align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .card-cat-pill {
-  font-size: 9px;
-  font-weight: 600;
-  letter-spacing: 0.6px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
   text-transform: uppercase;
   padding: 2px 7px;
-  border-radius: 10px;
-  border: 1px solid;
-  opacity: 0.85;
+  border-radius: 4px;
+  background: #f0f0f2;
+  color: var(--text-primary);
+  border: 1px solid rgba(0, 0, 0, 0.08);
 }
 
 .card-source {
-  font-size: 10px;
-  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
   flex: 1;
 }
 
@@ -77,97 +66,117 @@
 
 /* ── Title ── */
 .card-title {
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 600;
-  line-height: 1.45;
+  line-height: 1.4;
   color: var(--text-primary);
   cursor: pointer;
-  letter-spacing: -0.1px;
+  letter-spacing: -0.15px;
   transition: color 0.15s;
 }
 
 .card-title:hover {
-  color: var(--accent-blue);
+  color: #555555;
 }
 
-/* ── Summary ── */
-.card-summary {
+/* ── Drop Bar Toggle ── */
+.card-drop-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 8px;
+  margin-top: 2px;
+  background: #f8f8fa;
+  border-radius: 6px;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.card-drop-bar:hover {
+  background: #efeff2;
+  border-color: #555555;
+}
+
+.drop-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.read-time-tag {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+/* ── Expandable Drop Container ── */
+.card-summary-drop {
   max-height: 0;
   overflow: hidden;
   transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.card-summary--expanded {
-  max-height: 200px;
+.card-summary-drop--open {
+  max-height: 240px;
 }
 
-.card-summary p {
-  font-size: 11.5px;
-  line-height: 1.6;
+.summary-content-inner {
+  padding: 10px 8px 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.summary-text {
+  font-size: 12px;
+  line-height: 1.55;
   color: var(--text-secondary);
-  padding-top: 2px;
 }
 
-/* ── Actions ── */
-.card-actions {
+/* ── Drop Actions ── */
+.summary-drop-actions {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-top: 2px;
-}
-
-.card-right-actions {
-  display: flex;
-  gap: 4px;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(0, 0, 0, 0.1);
 }
 
 .card-btn {
-  font-size: 10px;
-  font-weight: 500;
-  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 5px 10px;
   border-radius: 6px;
-  transition: background 0.15s, color 0.15s;
-  color: var(--text-muted);
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  color: var(--text-primary);
+  background: #ffffff;
+  border: 1px solid var(--border);
+  cursor: pointer;
 }
 
 .card-btn:hover {
-  background: var(--bg-hover);
-  color: var(--text-primary);
-}
-
-.card-btn--expand {
-  color: var(--text-muted);
-  font-size: 10px;
-}
-
-.card-btn--save {
-  font-size: 13px;
-  width: 26px;
-  height: 26px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
+  background: #111111;
+  color: #ffffff;
+  border-color: #111111;
 }
 
 .card-btn--save.saved {
-  color: #F5A623;
+  background: #111111;
+  color: #ffffff;
+  border-color: #111111;
 }
 
-.card-btn--link {
-  width: 26px;
-  height: 26px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  font-size: 13px;
-  color: var(--text-muted);
-  border-radius: 6px;
-  transition: background 0.15s, color 0.15s;
+.card-btn--external {
+  font-size: 11px;
+  font-weight: 700;
+  background: #111111;
+  color: #ffffff;
+  border: 1px solid #111111;
 }
 
-.card-btn--link:hover {
-  background: var(--bg-hover);
-  color: var(--text-primary);
+.card-btn--external:hover {
+  background: #333333;
+  border-color: #333333;
 }

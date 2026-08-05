@@ -1,21 +1,21 @@
 /* ──────────────────────────────────────────────
-   DESIGN TOKENS
+   DESIGN TOKENS — Minimalist Monochromatic
 ────────────────────────────────────────────── */
 :root {
-  --bg-panel:    rgba(246, 246, 246, 0.88);
-  --bg-card:     rgba(255, 255, 255, 0.75);
-  --bg-hover:    rgba(0, 0, 0, 0.04);
-  --border:      rgba(0, 0, 0, 0.08);
-  --border-glow: rgba(0, 122, 255, 0.15);
-  --text-primary:   #1d1d1f;
-  --text-secondary: #6e6e73;
-  --text-muted:     #86868b;
-  --accent-blue:   #007AFF;
-  --accent-green:  #34C759;
-  --radius-card:  12px;
-  --radius-pill:   20px;
-  --shadow-panel: 0 10px 40px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(0, 0, 0, 0.03);
-  --font: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', sans-serif;
+  --bg-panel:        rgba(248, 248, 250, 0.96);
+  --bg-card:         #ffffff;
+  --bg-hover:        rgba(0, 0, 0, 0.04);
+  --border:          rgba(0, 0, 0, 0.12);
+  --border-strong:   #222222;
+  --text-primary:     #111111;
+  --text-secondary:   #555555;
+  --text-muted:       #888888;
+  --accent-black:     #111111;
+  --accent-grey:      #666666;
+  --radius-card:      10px;
+  --radius-pill:      16px;
+  --shadow-panel:     0 8px 30px rgba(0, 0, 0, 0.08);
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
 }
 
 /* ──────────────────────────────────────────────
@@ -38,11 +38,11 @@ html, body, #root {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Scrollbar */
+/* Minimalist Scrollbar */
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.12); border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.22); }
+::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.15); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(0, 0, 0, 0.3); }
 
 button { cursor: pointer; border: none; background: none; font-family: var(--font); }
-a { text-decoration: none; }
+a { text-decoration: none; color: inherit; }
