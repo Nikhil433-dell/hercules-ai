@@ -19,11 +19,21 @@ export default function App() {
     setWakeKey((k) => k + 1);
   }, []);
 
-  // Listen for system wake event from main process
+  // Listen for system wake & panel state events from main process
   useEffect(() => {
-    (window as any).electronAPI?.onSystemWake(() => {
+    const api = (window as any).electronAPI;
+    if (!api) return;
+
+    api.onSystemWake(() => {
       setPanelState('expanded');
       setWakeKey((k) => k + 1);
+    });
+
+    api.onPanelStateChanged?.((state: AppState) => {
+      setPanelState(state);
+      if (state === 'expanded') {
+        setWakeKey((k) => k + 1);
+      }
     });
   }, []);
 

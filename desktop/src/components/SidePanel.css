@@ -98,19 +98,6 @@
   font-size: 14px;
 }
 
-/* ── Timer bar ── */
-.timer-bar-track {
-  height: 2px;
-  background: rgba(0, 0, 0, 0.08);
-  flex-shrink: 0;
-}
-
-.timer-bar-fill {
-  height: 100%;
-  background: #111111;
-  transition: width 1s linear;
-}
-
 /* ── Tab bar ── */
 .tab-bar {
   display: flex;
@@ -283,11 +270,10 @@
 
 /* ── News feed ── */
 .news-feed {
-  flex: 1;
-  overflow-y: auto;
+  /* flex: 1; */
   padding: 0 10px 10px;
-  display: flex;
-  flex-direction: column;
+  /* flex-direction: column; */
+  overflow: auto;
   gap: 8px;
 }
 

@@ -9,7 +9,6 @@ import {
   screen,
   shell,
 } from 'electron';
-import * as path from 'path';
 
 declare const MAIN_WINDOW_WEBPACK_ENTRY: string;
 declare const MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY: string;
@@ -21,7 +20,6 @@ if (require('electron-squirrel-startup')) {
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
-let isExpanded = true;
 
 const PANEL_WIDTH = 360;
 const PANEL_HEIGHT = 680;
@@ -72,17 +70,6 @@ const createWindow = (): void => {
     mainWindow.webContents.openDevTools({ mode: 'detach' });
   }
 
-  // Auto-minimize timer
-  let autoHideTimer: ReturnType<typeof setTimeout> | null = null;
-  const startAutoHide = () => {
-    if (autoHideTimer) clearTimeout(autoHideTimer);
-    autoHideTimer = setTimeout(() => {
-      if (mainWindow && isExpanded) {
-        collapsePanel();
-      }
-    }, 2 * 60 * 1000);
-  };
-
   const expandPanel = () => {
     if (!mainWindow) return;
     const origin = getTopRightOrigin();
@@ -91,8 +78,7 @@ const createWindow = (): void => {
       true,
     );
     mainWindow.show();
-    isExpanded = true;
-    startAutoHide();
+    mainWindow.webContents.send('panel-state-changed', 'expanded');
   };
 
   const collapsePanel = () => {
@@ -104,8 +90,7 @@ const createWindow = (): void => {
       { x: width - 52 - PANEL_MARGIN, y: display.workArea.y + PANEL_MARGIN, width: 44, height: 44 },
       true,
     );
-    isExpanded = false;
-    if (autoHideTimer) clearTimeout(autoHideTimer);
+    mainWindow.webContents.send('panel-state-changed', 'collapsed');
   };
 
   // IPC handlers
@@ -126,8 +111,6 @@ const createWindow = (): void => {
     mainWindow?.webContents.send('system-wake');
     expandPanel();
   });
-
-  startAutoHide();
 };
 
 const createTray = (): void => {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import NewsCard, { NewsItem } from './NewsCard';
 import Settings, { UserSettings, DEFAULT_SETTINGS } from './Settings';
 import './SidePanel.css';
@@ -87,14 +87,6 @@ export default function SidePanel({ onMinimize }: SidePanelProps) {
   const [visible, setVisible] = useState(false);
   const [briefingExpanded, setBriefingExpanded] = useState(true);
 
-  const autoHideSeconds = userSettings.autoHideMinutes * 60;
-  const [timeLeft, setTimeLeft] = useState(autoHideSeconds);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  useEffect(() => {
-    setTimeLeft(userSettings.autoHideMinutes * 60);
-  }, [userSettings.autoHideMinutes]);
-
   useEffect(() => {
     requestAnimationFrame(() => setVisible(true));
   }, []);
@@ -102,20 +94,6 @@ export default function SidePanel({ onMinimize }: SidePanelProps) {
   useEffect(() => {
     const t = setTimeout(() => setLoading(false), 700);
     return () => clearTimeout(t);
-  }, []);
-
-  useEffect(() => {
-    timerRef.current = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
-          clearInterval(timerRef.current!);
-          handleMinimize();
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(timerRef.current!);
   }, []);
 
   const handleMinimize = () => {
@@ -138,15 +116,13 @@ export default function SidePanel({ onMinimize }: SidePanelProps) {
     .filter((n) => userSettings.categories.includes(n.category))
     .filter((n) => activeCategory === 'All' || n.category === activeCategory);
 
-  const timerPercent = (timeLeft / autoHideSeconds) * 100;
-
   return (
     <div className={`panel-root ${visible ? 'panel-visible' : ''}`}>
       {/* Header */}
       <div className="panel-header">
         <div className="panel-logo">
           <div className="logo-badge">H</div>
-          <span className="logo-text">Hercules AI</span>
+          <span className="logo-text">ercules</span>
         </div>
         <div className="panel-header-actions">
           <button
@@ -164,14 +140,6 @@ export default function SidePanel({ onMinimize }: SidePanelProps) {
             ✕
           </button>
         </div>
-      </div>
-
-      {/* Auto-hide timer bar */}
-      <div className="timer-bar-track">
-        <div
-          className="timer-bar-fill"
-          style={{ width: `${timerPercent}%` }}
-        />
       </div>
 
       {showSettings ? (
@@ -200,36 +168,6 @@ export default function SidePanel({ onMinimize }: SidePanelProps) {
 
           {activeTab === 'news' ? (
             <>
-              {/* Major AI Briefing Executive Container */}
-              <div className="executive-briefing-box">
-                <div className="briefing-box-header" onClick={() => setBriefingExpanded(!briefingExpanded)}>
-                  <div className="briefing-title-group">
-                    <span className="briefing-icon">H</span>
-                    <span className="briefing-title">AI Briefing Context</span>
-                  </div>
-                  <button className="briefing-toggle-btn">
-                    {briefingExpanded ? 'Hide Context ▲' : 'Show Context ▼'}
-                  </button>
-                </div>
-
-                {briefingExpanded && (
-                  <div className="briefing-box-body">
-                    <div className="briefing-section">
-                      <div className="briefing-label">Why You're Seeing These</div>
-                      <p className="briefing-desc">
-                        Synthesized on system wake to prioritize major shifts in AI compute infrastructure, Fed rate policy, and global clean energy markets based on your active preferences.
-                      </p>
-                    </div>
-                    <div className="briefing-section">
-                      <div className="briefing-label">Why They're Worth Reading</div>
-                      <p className="briefing-desc">
-                        AI inference demand surpassing training compute signals key hardware supply chain re-allocations, while Fed signals directly impact tech valuations this quarter.
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
-
               {/* Category pills */}
               <div className="category-scroll">
                 {availableCategories.map((cat) => (
@@ -281,7 +219,7 @@ export default function SidePanel({ onMinimize }: SidePanelProps) {
           {/* Footer */}
           <div className="panel-footer">
             <span>Refreshed just now</span>
-            <span>{Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')} auto-hide</span>
+            <span>Hercules AI</span>
           </div>
         </>
       )}
