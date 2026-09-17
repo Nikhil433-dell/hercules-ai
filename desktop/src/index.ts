@@ -10,6 +10,8 @@ import {
   shell,
 } from 'electron';
 
+import { existsSync } from 'fs';
+
 declare const MAIN_WINDOW_WEBPACK_ENTRY: string;
 declare const MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY: string;
 
@@ -72,24 +74,41 @@ const createWindow = (): void => {
 
   const expandPanel = () => {
     if (!mainWindow) return;
-    const origin = getTopRightOrigin();
-    mainWindow.setBounds(
-      { x: origin.x, y: origin.y, width: PANEL_WIDTH, height: PANEL_HEIGHT },
-      true,
-    );
+    // Position relative to tray if available (macOS), otherwise use top-right origin
+    let x = getTopRightOrigin().x;
+    let y = getTopRightOrigin().y;
+    if (tray && typeof (tray as any).getBounds === 'function') {
+      try {
+        const bounds = (tray as any).getBounds();
+        x = Math.round(bounds.x + bounds.width / 2 - PANEL_WIDTH / 2);
+        y = Math.round(bounds.y + bounds.height + PANEL_MARGIN);
+      } catch (e) {
+        // fallback to top-right
+      }
+    }
+    mainWindow.setBounds({ x, y, width: PANEL_WIDTH, height: PANEL_HEIGHT }, true);
     mainWindow.show();
     mainWindow.webContents.send('panel-state-changed', 'expanded');
   };
 
   const collapsePanel = () => {
     if (!mainWindow) return;
-    const display = screen.getPrimaryDisplay();
-    const { width } = display.workAreaSize;
-    // Shrink to floating square in top-right
-    mainWindow.setBounds(
-      { x: width - 52 - PANEL_MARGIN, y: display.workArea.y + PANEL_MARGIN, width: 44, height: 44 },
-      true,
-    );
+    // Shrink to floating square near top-right or near tray
+    let x = getTopRightOrigin().x + PANEL_WIDTH - 52;
+    let y = getTopRightOrigin().y;
+    if (tray && typeof (tray as any).getBounds === 'function') {
+      try {
+        const bounds = (tray as any).getBounds();
+        x = Math.round(bounds.x + bounds.width - 52);
+        y = Math.round(bounds.y);
+      } catch (e) {}
+    } else {
+      const display = screen.getPrimaryDisplay();
+      const { width } = display.workAreaSize;
+      x = width - 52 - PANEL_MARGIN;
+      y = display.workArea.y + PANEL_MARGIN;
+    }
+    mainWindow.setBounds({ x, y, width: 44, height: 44 }, true);
     mainWindow.webContents.send('panel-state-changed', 'collapsed');
   };
 
@@ -114,19 +133,90 @@ const createWindow = (): void => {
 };
 
 const createTray = (): void => {
-  const icon = nativeImage.createEmpty();
+  // Prefer a packaged icon; fall back to a bundled template image for macOS (.png or .svg)
+  let icon: nativeImage.NativeImage;
+  try {
+    const baseDir = __dirname + '/assets';
+    const packagedPath = app.isPackaged ? process.resourcesPath + '/icon.png' : null;
+    const candidatePng = baseDir + '/trayTemplate.png';
+    const candidateSvg = baseDir + '/trayTemplate.svg';
+    let iconPath = '';
+    if (packagedPath && existsSync(packagedPath)) {
+      iconPath = packagedPath;
+    } else if (existsSync(candidatePng)) {
+      iconPath = candidatePng;
+    } else if (existsSync(candidateSvg)) {
+      iconPath = candidateSvg;
+    } else {
+      iconPath = '';
+    }
+    if (iconPath) {
+      icon = nativeImage.createFromPath(iconPath);
+      if (icon.isEmpty()) icon = nativeImage.createEmpty();
+    } else {
+      icon = nativeImage.createEmpty();
+    }
+  } catch (e) {
+    icon = nativeImage.createEmpty();
+  }
+
+  // On macOS, mark as template image so the system can adapt it for dark/light modes
+  if (process.platform === 'darwin' && icon && typeof (icon as any).setTemplateImage === 'function') {
+    try { (icon as any).setTemplateImage(true); } catch (e) {}
+  }
+
   tray = new Tray(icon);
   tray.setToolTip('Hercules AI');
+
   const contextMenu = Menu.buildFromTemplate([
-    { label: 'Show Panel', click: () => mainWindow?.show() },
+    { label: 'Toggle Panel', click: () => {
+        if (!mainWindow) return;
+        if (mainWindow.isVisible()) {
+          mainWindow.hide();
+          mainWindow.webContents.send('panel-state-changed', 'collapsed');
+        } else {
+          // position relative to tray if possible
+          if (tray && typeof (tray as any).getBounds === 'function') {
+            try {
+              const bounds = (tray as any).getBounds();
+              const x = Math.round(bounds.x + bounds.width / 2 - PANEL_WIDTH / 2);
+              const y = Math.round(bounds.y + bounds.height + PANEL_MARGIN);
+              mainWindow.setBounds({ x, y, width: PANEL_WIDTH, height: PANEL_HEIGHT }, true);
+            } catch (e) {}
+          }
+          mainWindow.show();
+          mainWindow.webContents.send('panel-state-changed', 'expanded');
+        }
+      }
+    },
     { type: 'separator' },
     { label: 'Quit', click: () => app.quit() },
   ]);
   tray.setContextMenu(contextMenu);
+
   tray.on('click', () => {
-    mainWindow?.show();
-    ipcMain.emit('expand-panel');
+    if (!mainWindow) return;
+    if (mainWindow.isVisible()) {
+      mainWindow.hide();
+      mainWindow.webContents.send('panel-state-changed', 'collapsed');
+    } else {
+      if (tray && typeof (tray as any).getBounds === 'function') {
+        try {
+          const bounds = (tray as any).getBounds();
+          const x = Math.round(bounds.x + bounds.width / 2 - PANEL_WIDTH / 2);
+          const y = Math.round(bounds.y + bounds.height + PANEL_MARGIN);
+          mainWindow.setBounds({ x, y, width: PANEL_WIDTH, height: PANEL_HEIGHT }, true);
+        } catch (e) {}
+      }
+      mainWindow.show();
+      mainWindow.webContents.send('panel-state-changed', 'expanded');
+    }
   });
+
+  // Hide Dock icon on macOS so the app behaves like a menu-bar-only app
+  if (process.platform === 'darwin' && (app as any).dock) {
+    try { (app as any).dock.hide(); } catch (e) {}
+  }
 };
 
 app.on('ready', () => {

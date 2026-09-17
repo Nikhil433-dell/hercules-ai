@@ -65,7 +65,7 @@
   font-size: 14px;
   font-weight: 700;
   letter-spacing: -0.2px;
-  color: #111111;
+  color: var(--text-primary);
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
 }
 
@@ -121,12 +121,12 @@
 }
 
 .tab-btn--active {
-  color: #111111;
-  border-bottom-color: #111111;
+  color: var(--text-primary);
+  border-bottom-color: var(--text-primary);
 }
 
 .tab-btn:hover:not(.tab-btn--active) {
-  color: #333333;
+  color: var(--text-primary);
 }
 
 /* ── Executive AI Briefing Box ── */

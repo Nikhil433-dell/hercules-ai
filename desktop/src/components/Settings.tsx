@@ -1,14 +1,18 @@
 import React, { useState } from 'react';
 import './Settings.css';
 
+export type ThemeMode = 'light' | 'dark';
+
 export interface UserSettings {
   categories: string[];
   refreshInterval: number;
+  theme: ThemeMode;
 }
 
 export const DEFAULT_SETTINGS: UserSettings = {
   categories: ['Tech', 'Finance', 'World', 'Sports'],
   refreshInterval: 15,
+  theme: 'light',
 };
 
 interface SettingsProps {
@@ -18,10 +22,12 @@ interface SettingsProps {
 }
 
 const ALL_CATEGORIES = ['Tech', 'Finance', 'World', 'Sports'];
+const THEME_OPTIONS: ThemeMode[] = ['light', 'dark'];
 
 export default function Settings({ onClose, currentSettings, onSaveSettings }: SettingsProps) {
   const [categories, setCategories] = useState<string[]>(currentSettings.categories);
   const [refreshInterval, setRefreshInterval] = useState<number>(currentSettings.refreshInterval);
+  const [theme, setTheme] = useState<ThemeMode>(currentSettings.theme ?? 'light');
 
   const toggleCategory = (cat: string) => {
     setCategories((prev) =>
@@ -33,6 +39,7 @@ export default function Settings({ onClose, currentSettings, onSaveSettings }: S
     const updated: UserSettings = {
       categories,
       refreshInterval,
+      theme,
     };
     onSaveSettings(updated);
     onClose();
@@ -43,6 +50,22 @@ export default function Settings({ onClose, currentSettings, onSaveSettings }: S
       <div className="settings-header">
         <h2 className="settings-title">Settings</h2>
         <button className="icon-btn" onClick={onClose} title="Close">✕</button>
+      </div>
+
+      <div className="settings-section">
+        <h3 className="settings-section-title">Theme</h3>
+        <div className="theme-options">
+          {THEME_OPTIONS.map((option) => (
+            <button
+              key={option}
+              type="button"
+              className={`theme-option ${theme === option ? 'theme-option--active' : ''}`}
+              onClick={() => setTheme(option)}
+            >
+              {option === 'light' ? 'Light' : 'Dark'}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="settings-section">

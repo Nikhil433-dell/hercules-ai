@@ -18,6 +18,20 @@
   --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
 }
 
+body[data-theme='dark'] {
+  --bg-panel: rgba(16, 18, 22, 0.96);
+  --bg-card: #1d1f26;
+  --bg-hover: rgba(255, 255, 255, 0.06);
+  --border: rgba(255, 255, 255, 0.1);
+  --border-strong: rgba(255, 255, 255, 0.18);
+  --text-primary: #f3f4f6;
+  --text-secondary: #d1d5db;
+  --text-muted: #9ca3af;
+  --accent-black: #f3f4f6;
+  --accent-grey: #c4c8cf;
+  --shadow-panel: 0 8px 30px rgba(0, 0, 0, 0.38);
+}
+
 /* ──────────────────────────────────────────────
    RESET & BASE
 ────────────────────────────────────────────── */

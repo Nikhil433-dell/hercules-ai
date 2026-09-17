@@ -165,18 +165,39 @@ graph TB
 
 ---
 
-### Phase 3 — System Integration (Week 5)
+### Phase 3 — System Integration (Week 5) ✅ COMPLETE
 > **Goal**: Auto-trigger on laptop open + polish UX
 
 ```
 ✅ Detect system unlock/wake events (OS-level hooks)
    - macOS: "unlock" events via Electron powerMonitor API
-✅ Auto-fetch fresh news on wake
-✅ Add user preferences (categories, refresh interval)
-✅ Implement reading history / bookmarks
-✅ Add "Read More" links to full articles
-✅ Dark/Light theme toggle
+✅ Auto-fetch fresh news on wake by re-rendering the panel and refreshing the live summary
+✅ Add persisted user preferences (categories, refresh interval, theme)
+✅ Implement article bookmarking / saved-state interactions in the card UI
+✅ Add "Read Full Story" links that open the original article in the default browser
+✅ Dark/Light theme toggle with persistent preference state
+✅ Keep the panel visible while the app is active and collapse back to the floating icon when minimized
 ```
+
+This phase is now represented by the working Electron shell plus the live backend summary flow:
+
+- `desktop/src/index.ts` listens for `unlock-screen` and `resume` events and expands the panel.
+- `desktop/src/components/SidePanel.tsx` reloads trusted news data from the FastAPI backend using the current category preferences.
+- `desktop/src/components/Settings.tsx` persists theme + category state to `localStorage`.
+- `desktop/src/components/NewsCard.tsx` supports quick bookmarking and article-link flow.
+
+### Native macOS shell
+
+The repository also includes `macos/app.py`, a macOS-only AppKit client built
+with PyObjC. It is an alternative to the Electron shell:
+
+```
+macOS menu bar → NSStatusItem → NSPopover → FastAPI /news/summary
+                         └→ NSWorkspace wake notifications → refresh
+```
+
+Use this path when native menu-bar integration is preferred. It keeps the
+backend unchanged and can be packaged as a menu-bar-only `.app` with py2app.
 
 ---
 

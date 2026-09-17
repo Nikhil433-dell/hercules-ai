@@ -8,6 +8,13 @@ interface SidePanelProps {
 }
 
 const ALL_CATEGORIES = ['Tech', 'Finance', 'World', 'Sports'];
+const API_CATEGORY_MAP: Record<string, string> = {
+  Tech: 'technology',
+  Finance: 'business',
+  World: 'world',
+  Sports: 'sports',
+  General: 'general',
+};
 
 const MOCK_NEWS: NewsItem[] = [
   {
@@ -70,7 +77,15 @@ const MOCK_NEWS: NewsItem[] = [
 function loadSavedSettings(): UserSettings {
   try {
     const raw = localStorage.getItem('hercules_user_settings');
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const parsed = JSON.parse(raw) as Partial<UserSettings>;
+      return {
+        ...DEFAULT_SETTINGS,
+        ...parsed,
+        categories: Array.isArray(parsed.categories) ? parsed.categories : DEFAULT_SETTINGS.categories,
+        theme: parsed.theme === 'dark' ? 'dark' : 'light',
+      };
+    }
   } catch (e) {
     console.error('Failed to load settings from localStorage', e);
   }
@@ -81,20 +96,83 @@ export default function SidePanel({ onMinimize }: SidePanelProps) {
   const [userSettings, setUserSettings] = useState<UserSettings>(loadSavedSettings);
   const [activeCategory, setActiveCategory] = useState('All');
   const [activeTab, setActiveTab] = useState<'news' | 'earnings'>('news');
-  const [news] = useState<NewsItem[]>(MOCK_NEWS);
+  const [news, setNews] = useState<NewsItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
   const [visible, setVisible] = useState(false);
-  const [briefingExpanded, setBriefingExpanded] = useState(true);
+
+  useEffect(() => {
+    document.body.dataset.theme = userSettings.theme;
+  }, [userSettings.theme]);
 
   useEffect(() => {
     requestAnimationFrame(() => setVisible(true));
   }, []);
 
   useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 700);
-    return () => clearTimeout(t);
-  }, []);
+    let ignore = false;
+
+    const fetchNews = async () => {
+      const selectedCategories = Array.from(
+        new Set(
+          (userSettings.categories.length > 0 ? userSettings.categories : DEFAULT_SETTINGS.categories).map(
+            (category) => API_CATEGORY_MAP[category] ?? category.toLowerCase(),
+          ),
+        ),
+      );
+
+      setLoading(true);
+
+      try {
+        const summaries = await Promise.all(
+          selectedCategories.map(async (apiCategory) => {
+            const response = await fetch(
+              `http://localhost:8000/news/summary?category=${encodeURIComponent(apiCategory)}`,
+            );
+            if (!response.ok) {
+              throw new Error(`Request failed for ${apiCategory}`);
+            }
+            return response.json();
+          }),
+        );
+
+        const merged: NewsItem[] = [];
+        summaries.forEach((payload) => {
+          const items = payload?.briefing?.articles ?? [];
+          items.forEach((article: any) => {
+            merged.push({
+              id: `${article.url}-${article.title}`,
+              title: article.title,
+              summary: article.summary || article.description || 'No summary available.',
+              category: article.category || 'General',
+              source: article.source || 'Unknown source',
+              url: article.url,
+              publishedAt: new Date().toISOString(),
+              readTime: Math.max(2, Math.ceil((article.summary || '').length / 200)),
+            });
+          });
+        });
+
+        if (!ignore) {
+          setNews(merged.length > 0 ? merged : MOCK_NEWS.filter((item) => userSettings.categories.includes(item.category)));
+        }
+      } catch (error) {
+        console.warn('Using fallback news data because the backend was unavailable.', error);
+        if (!ignore) {
+          setNews(MOCK_NEWS.filter((item) => userSettings.categories.includes(item.category)));
+        }
+      } finally {
+        if (!ignore) {
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchNews();
+    return () => {
+      ignore = true;
+    };
+  }, [userSettings.categories]);
 
   const handleMinimize = () => {
     setVisible(false);
@@ -118,7 +196,6 @@ export default function SidePanel({ onMinimize }: SidePanelProps) {
 
   return (
     <div className={`panel-root ${visible ? 'panel-visible' : ''}`}>
-      {/* Header */}
       <div className="panel-header">
         <div className="panel-logo">
           <div className="logo-badge">H</div>
@@ -150,7 +227,6 @@ export default function SidePanel({ onMinimize }: SidePanelProps) {
         />
       ) : (
         <>
-          {/* Tab bar */}
           <div className="tab-bar">
             <button
               className={`tab-btn ${activeTab === 'news' ? 'tab-btn--active' : ''}`}
@@ -168,7 +244,6 @@ export default function SidePanel({ onMinimize }: SidePanelProps) {
 
           {activeTab === 'news' ? (
             <>
-              {/* Category pills */}
               <div className="category-scroll">
                 {availableCategories.map((cat) => (
                   <button
@@ -181,13 +256,11 @@ export default function SidePanel({ onMinimize }: SidePanelProps) {
                 ))}
               </div>
 
-              {/* AI summary badge */}
               <div className="ai-badge">
                 <span className="ai-dot" />
                 <span>AI Summarized · {filtered.length} stories</span>
               </div>
 
-              {/* News feed */}
               <div className="news-feed">
                 {loading ? (
                   <div className="skeleton-list">
@@ -216,7 +289,6 @@ export default function SidePanel({ onMinimize }: SidePanelProps) {
             </div>
           )}
 
-          {/* Footer */}
           <div className="panel-footer">
             <span>Refreshed just now</span>
             <span>Hercules AI</span>
