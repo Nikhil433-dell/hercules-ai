@@ -8,7 +8,7 @@
   padding: 0;
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   background: transparent;
   overflow: hidden;
   opacity: 0;
@@ -20,11 +20,12 @@
 }
 
 .floating-btn {
-  width: 100%;
+  width: 64px;
   height: 100%;
-  border-radius: 10px;
+  border-radius: 16px 0 0 16px;
   background: #f4f4f6;
   border: 2px solid #555555;
+  border-right: none;
   box-shadow: none;
   display: flex;
   align-items: center;
@@ -34,10 +35,12 @@
   padding: 0;
   margin: 0;
   -webkit-app-region: no-drag;
-  transition: background 0.15s ease, border-color 0.15s ease;
+  transform: translateX(0);
+  transition: transform 0.2s ease, background 0.15s ease, border-color 0.15s ease;
 }
 
 .floating-btn:hover {
+  transform: translateX(-44px);
   background: #ffffff;
   border-color: #111111;
 }
@@ -53,4 +56,20 @@
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
   line-height: 1;
   user-select: none;
+}
+
+.floating-arrow {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-53%);
+  color: #111111;
+  font-size: 30px;
+  font-weight: 300;
+  line-height: 1;
+  user-select: none;
+}
+
+.floating-btn:hover .floating-arrow {
+  opacity: 0;
 }

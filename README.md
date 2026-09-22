@@ -22,24 +22,16 @@ cp .env.example .env       # Fill in your API keys
 uvicorn app.main:app --reload
 ```
 
-### Desktop
+### Desktop (Electron)
 ```bash
 cd desktop
 npm install
-npm run dev
+npm run start
 ```
 
-### Native macOS menu-bar client
-```bash
-cd macos
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-python app.py
-```
-
-This is a macOS-only AppKit client using PyObjC. It places Hercules AI in the
-menu bar and opens a native popover connected to the FastAPI backend.
+On macOS, Electron provides an accessory app without a Dock icon. The panel
+minimizes to a partially docked H icon on the right edge of the screen; hover
+reveals the full icon and clicking it restores the React panel.
 
 ### Docker (Full Stack)
 ```bash

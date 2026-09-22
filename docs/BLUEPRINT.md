@@ -158,7 +158,7 @@ graph TB
 ✅ Add slide-in/slide-out animations
 ✅ Implement 2-minute auto-minimize timer
 ✅ Connect to backend API and display real news
-✅ System tray integration (right-click menu)
+✅ Edge-docked launcher icon with hover reveal and click-to-open behavior
 ```
 
 **Key deliverable**: Transparent side panel showing news, auto-hides after 2 min
@@ -185,19 +185,6 @@ This phase is now represented by the working Electron shell plus the live backen
 - `desktop/src/components/SidePanel.tsx` reloads trusted news data from the FastAPI backend using the current category preferences.
 - `desktop/src/components/Settings.tsx` persists theme + category state to `localStorage`.
 - `desktop/src/components/NewsCard.tsx` supports quick bookmarking and article-link flow.
-
-### Native macOS shell
-
-The repository also includes `macos/app.py`, a macOS-only AppKit client built
-with PyObjC. It is an alternative to the Electron shell:
-
-```
-macOS menu bar → NSStatusItem → NSPopover → FastAPI /news/summary
-                         └→ NSWorkspace wake notifications → refresh
-```
-
-Use this path when native menu-bar integration is preferred. It keeps the
-backend unchanged and can be packaged as a menu-bar-only `.app` with py2app.
 
 ---
 

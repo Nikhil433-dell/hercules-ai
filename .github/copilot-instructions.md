@@ -6,7 +6,6 @@ This repo contains two runtime surfaces that work together:
 
 - `backend/`: FastAPI API + async services for fetching, caching, and summarizing news.
 - `desktop/`: existing Electron + React + TypeScript desktop shell that renders a floating side panel and listens for wake/panel state events.
-- `macos/`: native macOS AppKit client built with PyObjC; it provides the menu-bar status item and popover replacement for Electron.
 - `docs/BLUEPRINT.md`: higher-level product blueprint for the app; it describes planned earnings/Ollama features that are broader than the current code.
 
 The codebase is largely a working news briefings app with a few planned-but-not-yet-complete extension points.
@@ -82,27 +81,6 @@ docker compose up -d
 
 This is the repo's full stack bootstrap path for the app and supporting services.
 
-### Native macOS client (PyObjC)
-
-The native client is macOS-only and uses the existing backend:
-
-```bash
-cd macos
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-python app.py
-```
-
-Build a menu-bar `.app` with py2app:
-
-```bash
-cd macos
-source venv/bin/activate
-pip install py2app
-python setup.py py2app
-```
-
 Current repo status:
 
 - Backend tests pass through the project venv (`./venv/bin/pytest tests/test_news.py -q`).
@@ -145,12 +123,9 @@ The app uses a small React interface with components under `desktop/src/componen
 
 The Electron main process is in `desktop/src/index.ts`; keep platform-specific behavior there and keep React rendering concerns inside the `src/components` tree.
 
-The native macOS client in `macos/app.py` is the primary macOS shell, not a
-second backend. It uses `NSStatusItem` for the menu-bar icon, `NSPopover` for
-the click-open panel, `NSWorkspace` wake notifications, and `urllib` for the
-existing `/news/summary` API. The Electron shell remains in `desktop/` as the
-legacy cross-platform implementation; new macOS behavior should target
-`macos/`.
+Electron in `desktop/` is the desktop shell for macOS and other supported
+platforms. It owns the edge-docked launcher, popup window, wake handling, and
+React UI; the FastAPI backend remains shared.
 
 ### Product context
 

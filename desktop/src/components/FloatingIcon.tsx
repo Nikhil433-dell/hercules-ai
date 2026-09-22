@@ -19,6 +19,9 @@ export default function FloatingIcon({ onExpand }: FloatingIconProps) {
         onClick={onExpand}
         title="Open Hercules AI"
       >
+        <span className="floating-arrow" aria-hidden="true">
+          ‹
+        </span>
         <span className="floating-icon-inner">H</span>
       </button>
     </div>
