@@ -58,10 +58,12 @@ async def get_summary(
     article_summaries = [
         ArticleSummary(
             title=a.get("title", ""),
-            summary=a.get("description", ""),
+            summary=a.get("description") or "",
             source=a.get("source", ""),
             url=a.get("url", ""),
             category=a.get("category", category),
+            published_at=a.get("published_at"),
+            tickers=a.get("tickers") or [],
         )
         for a in articles
     ]
@@ -110,6 +112,7 @@ async def get_headlines(
             source=a.get("source", ""),
             image_url=a.get("image_url"),
             published_at=a.get("published_at"),
+            tickers=a.get("tickers") or [],
             category=a.get("category", category),
         )
         for a in articles_raw

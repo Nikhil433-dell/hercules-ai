@@ -3,7 +3,7 @@
 from datetime import datetime
 from enum import Enum
 from typing import Dict, List, Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class CategoryEnum(str, Enum):
@@ -27,16 +27,20 @@ class NewsArticle(BaseModel):
     source: str
     image_url: Optional[str] = None
     published_at: Optional[str] = None
+    tickers: List[str] = Field(default_factory=list)
     category: str = "general"
 
 
 class ArticleSummary(BaseModel):
-    """A summarized version of an article."""
+    """Article card; summary contains the provider's description."""
     title: str
     summary: str
     source: str
     url: str
     category: str = "general"
+    published_at: Optional[str] = None
+    tickers: List[str] = Field(default_factory=list)
+    summary_source: str = "provider_description"
 
 
 class NewsBriefing(BaseModel):

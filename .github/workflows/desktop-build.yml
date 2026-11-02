@@ -2,11 +2,11 @@ name: Desktop Build
 
 on:
   push:
-    branches: [main]
+    branches: [main, master]
     paths:
       - "desktop/**"
   pull_request:
-    branches: [main]
+    branches: [main, master]
     paths:
       - "desktop/**"
 
@@ -22,20 +22,19 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
 
       - name: Install dependencies
         run: |
           cd desktop
           npm ci
 
+      - name: Test news monitor
+        run: |
+          cd desktop
+          npm test
+
       - name: Build
         run: |
           cd desktop
           npm run build
-
-      # TODO: Add electron-builder packaging step
-      # - name: Package
-      #   run: |
-      #     cd desktop
-      #     npx electron-builder --publish never

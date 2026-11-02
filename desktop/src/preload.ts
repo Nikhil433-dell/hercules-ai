@@ -1,11 +1,19 @@
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
+import type { ElectronAPI, NewsState } from './shared/news';
 
-contextBridge.exposeInMainWorld('electronAPI', {
-  onSystemWake: (callback: () => void) =>
-    ipcRenderer.on('system-wake', () => callback()),
-  onPanelStateChanged: (callback: (state: 'expanded' | 'collapsed') => void) =>
-    ipcRenderer.on('panel-state-changed', (_event, state) => callback(state)),
+const api: ElectronAPI = {
+  getNewsState: () => ipcRenderer.invoke('get-news-state'),
+  onNewsState: (callback) => {
+    const listener = (_event: IpcRendererEvent, state: NewsState) => callback(state);
+    ipcRenderer.on('news-state', listener);
+    return () => ipcRenderer.removeListener('news-state', listener);
+  },
+  setNewsMode: (mode) => ipcRenderer.send('set-news-mode', mode),
+  simulateNews: () => ipcRenderer.send('simulate-news'),
+  refreshNews: () => ipcRenderer.send('refresh-news'),
   minimizePanel: () => ipcRenderer.send('minimize-panel'),
+  quitApp: () => ipcRenderer.send('quit-app'),
   expandPanel: () => ipcRenderer.send('expand-panel'),
-  openExternal: (url: string) => ipcRenderer.send('open-external', url),
-});
+  openExternal: (url) => ipcRenderer.send('open-external', url),
+};
+contextBridge.exposeInMainWorld('electronAPI', api);

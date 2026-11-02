@@ -1,139 +1,148 @@
-import {
-  app,
-  BrowserWindow,
-  ipcMain,
-  powerMonitor,
-  screen,
-  shell,
-} from 'electron';
+import { app, BrowserWindow, ipcMain, Menu, nativeImage, net, Notification, powerMonitor, screen, shell, Tray } from 'electron';
+import * as fs from 'fs';
+import * as path from 'path';
+import { NewsMonitor, MonitorStorage } from './services/newsMonitor';
+import type { NewsItem } from './shared/news';
 
 declare const MAIN_WINDOW_WEBPACK_ENTRY: string;
 declare const MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY: string;
 
-// Handle creating/removing shortcuts on Windows when installing/uninstalling.
-if (require('electron-squirrel-startup')) {
-  app.quit();
-}
+if (require('electron-squirrel-startup')) app.quit();
 
 let mainWindow: BrowserWindow | null = null;
-
+let tray: Tray | null = null;
+let monitor: NewsMonitor;
+let quitting = false;
+const activeNotifications = new Set<Notification>();
 const PANEL_WIDTH = 360;
 const PANEL_HEIGHT = 680;
-const PANEL_MARGIN = 8; // Gap from screen edges
-const COLLAPSED_WIDTH = 72;
-const COLLAPSED_HEIGHT = 72;
-const EDGE_PEEK = 20;
 
-function getTopRightOrigin() {
-  const display = screen.getPrimaryDisplay();
-  const { x, width } = display.workArea;
+function panelBounds() {
+  const anchor = tray?.getBounds();
+  const display = anchor && anchor.width > 0 ? screen.getDisplayMatching(anchor) : screen.getPrimaryDisplay();
+  const area = display.workArea;
+  const width = Math.min(PANEL_WIDTH, area.width);
+  const height = Math.min(PANEL_HEIGHT, area.height);
   return {
-    x: x + width - PANEL_WIDTH - PANEL_MARGIN,
-    y: display.workArea.y + PANEL_MARGIN, // Just below the macOS menu bar
+    width, height,
+    x: Math.max(area.x, Math.min(area.x + area.width - width - 8, anchor ? Math.round(anchor.x + anchor.width / 2 - width / 2) : area.x + area.width - width - 8)),
+    y: area.y + 8,
   };
 }
 
-function getCollapsedOrigin() {
-  const display = screen.getPrimaryDisplay();
-  const { x, y, width, height } = display.workArea;
-  return {
-    x: x + width - EDGE_PEEK,
-    y: y + Math.round((height - COLLAPSED_HEIGHT) / 2),
-  };
+function expandPanel() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  mainWindow.setBounds(panelBounds());
+  mainWindow.show();
+  mainWindow.focus();
 }
 
-const createWindow = (): void => {
-  const origin = getTopRightOrigin();
+function openExternal(url: unknown) {
+  if (typeof url !== 'string') return;
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol === 'https:' || parsed.protocol === 'http:') void shell.openExternal(parsed.toString());
+  } catch { /* Invalid links never leave the app. */ }
+}
 
+function notify(article: NewsItem) {
+  tray?.setToolTip(`Hercules AI — ${article.title}`);
+  if (Notification.isSupported()) {
+    const notification = new Notification({
+      title: article.tickers.length > 0 ? `Hercules · ${article.tickers.join(', ')}` : 'Hercules · Finance',
+      body: article.title,
+      silent: true,
+    });
+    activeNotifications.add(notification);
+    notification.on('close', () => activeNotifications.delete(notification));
+    notification.on('failed', () => activeNotifications.delete(notification));
+    notification.on('click', expandPanel);
+    notification.show();
+  }
+}
+
+function createWindow() {
   mainWindow = new BrowserWindow({
-    x: origin.x,
-    y: origin.y,
-    width: PANEL_WIDTH,
-    height: PANEL_HEIGHT,
-    frame: false,
-    transparent: true,
-    alwaysOnTop: true,
-    resizable: false,
-    skipTaskbar: true,
-    hasShadow: false,
-    webPreferences: {
-      preload: MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY,
-      contextIsolation: true,
-      nodeIntegration: false,
-    },
+    ...panelBounds(), frame: false, transparent: true, alwaysOnTop: true,
+    resizable: false, skipTaskbar: true, hasShadow: true, show: false,
+    webPreferences: { preload: MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY, contextIsolation: true, nodeIntegration: false, backgroundThrottling: false },
   });
-
-  mainWindow.loadURL(MAIN_WINDOW_WEBPACK_ENTRY);
-
-  // Open external links in default browser (Chrome/Safari)
+  void mainWindow.loadURL(MAIN_WINDOW_WEBPACK_ENTRY);
+  mainWindow.once('ready-to-show', expandPanel);
+  mainWindow.on('close', (event) => {
+    if (!quitting) { event.preventDefault(); mainWindow?.hide(); }
+  });
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
-      shell.openExternal(url);
-    }
+    openExternal(url);
     return { action: 'deny' };
   });
-
-  // Open DevTools in development
-  if (process.env.NODE_ENV === 'development') {
-    mainWindow.webContents.openDevTools({ mode: 'detach' });
-  }
-
-  const expandPanel = () => {
-    if (!mainWindow) return;
-    const { x, y } = getTopRightOrigin();
-    mainWindow.setBounds({ x, y, width: PANEL_WIDTH, height: PANEL_HEIGHT }, true);
-    mainWindow.show();
-    mainWindow.webContents.send('panel-state-changed', 'expanded');
-  };
-
-  const collapsePanel = () => {
-    if (!mainWindow) return;
-    const { x, y } = getCollapsedOrigin();
-    mainWindow.setBounds({
-      x,
-      y,
-      width: COLLAPSED_WIDTH,
-      height: COLLAPSED_HEIGHT,
-    }, true);
-    mainWindow.show();
-    mainWindow.webContents.send('panel-state-changed', 'collapsed');
-  };
-
-  // IPC handlers
-  ipcMain.on('minimize-panel', () => collapsePanel());
-  ipcMain.on('expand-panel', () => expandPanel());
-  ipcMain.on('open-external', (_event, url: string) => {
-    if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
-      shell.openExternal(url);
-    }
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    if (url !== MAIN_WINDOW_WEBPACK_ENTRY) { event.preventDefault(); openExternal(url); }
   });
+}
 
-  // Detect system wake/unlock → show panel
-  powerMonitor.on('unlock-screen', () => {
-    mainWindow?.webContents.send('system-wake');
-    expandPanel();
-  });
-  powerMonitor.on('resume', () => {
-    mainWindow?.webContents.send('system-wake');
-    expandPanel();
-  });
-};
+function createTray() {
+  const image = nativeImage.createFromDataURL('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAN0lEQVR4nO3OwQkAIAwEwfTfdGzgPkERxFm4Z8JUScp12NUfAAAA6fjEAAC2ANMAAADeBkj/tAAlcgMMBazXfAAAAABJRU5ErkJggg==').resize({ width: 18, height: 18 });
+  image.setTemplateImage(true);
+  tray = new Tray(image);
+  tray.setToolTip('Hercules AI');
+  tray.on('click', () => mainWindow?.isVisible() ? mainWindow.hide() : expandPanel());
+  tray.on('right-click', () => tray?.popUpContextMenu(Menu.buildFromTemplate([
+    { label: 'Open Hercules', click: expandPanel },
+    { label: 'Send demo alert', click: () => monitor.simulate() },
+    { label: 'Refresh news', click: () => { void monitor.refresh(); } },
+    { type: 'separator' },
+    { label: 'Quit Hercules', click: () => app.quit() },
+  ])));
+}
 
-app.on('ready', () => {
-  if (process.platform === 'darwin') {
-    app.dock?.hide();
-  }
+app.whenReady().then(() => {
+  if (process.platform === 'darwin') app.dock?.hide();
+  const storageFile = path.join(app.getPath('userData'), 'news-monitor.json');
+  monitor = new NewsMonitor({
+    load: () => {
+      try { return JSON.parse(fs.readFileSync(storageFile, 'utf8')) as MonitorStorage; }
+      catch { return {}; }
+    },
+    save: (data) => {
+      fs.mkdirSync(path.dirname(storageFile), { recursive: true });
+      const temporaryFile = `${storageFile}.tmp`;
+      fs.writeFileSync(temporaryFile, JSON.stringify(data));
+      fs.renameSync(temporaryFile, storageFile);
+    },
+    fetchHeadlines: async () => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000);
+      try {
+        const response = await net.fetch('http://127.0.0.1:8000/news/headlines?category=business', { signal: controller.signal });
+        if (!response.ok) throw new Error(`The news backend returned ${response.status}. Check that it is running with valid news API keys.`);
+        return await response.json();
+      } catch (error) {
+        if (controller.signal.aborted) throw new Error('The news backend took too long to respond. Try refreshing.');
+        throw error;
+      } finally { clearTimeout(timeout); }
+    },
+    onState: (state) => {
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('news-state', state);
+    },
+    onArticle: notify,
+  });
+  createTray();
   createWindow();
+  ipcMain.handle('get-news-state', () => monitor.getState());
+  ipcMain.on('set-news-mode', (_event, mode: unknown) => {
+    if (mode === 'demo' || mode === 'live') monitor.setMode(mode);
+  });
+  ipcMain.on('simulate-news', () => monitor.simulate());
+  ipcMain.on('refresh-news', () => { void monitor.refresh(); });
+  ipcMain.on('minimize-panel', () => mainWindow?.hide());
+  ipcMain.on('expand-panel', expandPanel);
+  ipcMain.on('quit-app', () => app.quit());
+  ipcMain.on('open-external', (_event, url: unknown) => openExternal(url));
+  powerMonitor.on('resume', () => { void monitor.refresh(); });
+  powerMonitor.on('unlock-screen', () => { void monitor.refresh(); });
+  monitor.start();
 });
 
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
-});
-
-app.on('activate', () => {
-  if (BrowserWindow.getAllWindows().length === 0) {
-    createWindow();
-  }
-});
+app.on('before-quit', () => { quitting = true; monitor?.stop(); });
+app.on('activate', expandPanel);

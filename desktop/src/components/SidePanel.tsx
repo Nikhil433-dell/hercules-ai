@@ -1,300 +1,97 @@
 import React, { useState, useEffect } from 'react';
-import NewsCard, { NewsItem } from './NewsCard';
-import Settings, { UserSettings, DEFAULT_SETTINGS } from './Settings';
+import NewsCard from './NewsCard';
+import type { NewsState } from '../shared/news';
 import './SidePanel.css';
 
-interface SidePanelProps {
-  onMinimize: () => void;
-}
+interface SidePanelProps { onMinimize: () => void; }
 
-const ALL_CATEGORIES = ['Tech', 'Finance', 'World', 'Sports'];
-const API_CATEGORY_MAP: Record<string, string> = {
-  Tech: 'technology',
-  Finance: 'business',
-  World: 'world',
-  Sports: 'sports',
-  General: 'general',
+const INITIAL_STATE: NewsState = {
+  articles: [], mode: 'demo', loading: true, error: null, lastChecked: null,
 };
 
-const MOCK_NEWS: NewsItem[] = [
-  {
-    id: '1',
-    title: 'AI chips power surge as inference demand doubles in Q3',
-    summary:
-      'Data centers globally are racing to expand GPU capacity as inference workloads from deployed LLMs have exceeded training compute for the first time. NVIDIA, AMD, and custom silicon from hyperscalers are all benefiting.',
-    category: 'Tech',
-    source: 'TechCrunch',
-    url: 'https://techcrunch.com/2026/07/29/ai-chips-inference-demand-doubles-q3/',
-    publishedAt: new Date(Date.now() - 14 * 60 * 1000).toISOString(),
-    readTime: 3,
-  },
-  {
-    id: '2',
-    title: 'Federal Reserve signals one more rate cut before year-end',
-    summary:
-      'Fed Chair Powell indicated the committee is comfortable with the current trajectory, noting inflation has cooled to 2.3%. Markets priced in a 75% probability of a 25bps cut at the November meeting.',
-    category: 'Finance',
-    source: 'Reuters',
-    url: 'https://www.reuters.com/markets/us/fed-signals-rate-cut-inflation-cools-2026-07-29/',
-    publishedAt: new Date(Date.now() - 52 * 60 * 1000).toISOString(),
-    readTime: 2,
-  },
-  {
-    id: '3',
-    title: 'Open-source Llama 4 Scout benchmarks leak ahead of launch',
-    summary:
-      'Leaked internal benchmarks suggest the upcoming Llama 4 Scout model outperforms GPT-4o on reasoning tasks at a fraction of the compute cost, potentially reshaping the local inference landscape.',
-    category: 'Tech',
-    source: 'The Verge',
-    url: 'https://www.theverge.com/2026/7/29/llama-4-scout-benchmarks-leak-reasoning-ai/',
-    publishedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-    readTime: 4,
-  },
-  {
-    id: '4',
-    title: 'Apple Q3 earnings beat: Services revenue hits record $24.2B',
-    summary:
-      'Apple reported EPS of $1.53 vs. the $1.42 consensus estimate. iPhone revenue came in slightly below expectations while the Services segment hit a new all-time high, pushing the stock up 4% in after-hours trading.',
-    category: 'Finance',
-    source: 'Bloomberg',
-    url: 'https://www.bloomberg.com/news/articles/2026-07-29/apple-q3-earnings-beat-services-revenue-record/',
-    publishedAt: new Date(Date.now() - 3.5 * 60 * 60 * 1000).toISOString(),
-    readTime: 3,
-  },
-  {
-    id: '5',
-    title: 'UN climate summit reaches historic carbon pricing agreement',
-    summary:
-      '192 nations signed a landmark accord establishing a global carbon price floor of $40/tonne by 2027. Analysts say the deal could unlock $2T in clean-energy investment and reshape fossil fuel valuations.',
-    category: 'World',
-    source: 'BBC News',
-    url: 'https://www.bbc.com/news/articles/un-climate-summit-carbon-pricing-accord-2026/',
-    publishedAt: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
-    readTime: 4,
-  },
-];
-
-function loadSavedSettings(): UserSettings {
+function loadTheme(): 'light' | 'dark' {
   try {
-    const raw = localStorage.getItem('hercules_user_settings');
-    if (raw) {
-      const parsed = JSON.parse(raw) as Partial<UserSettings>;
-      return {
-        ...DEFAULT_SETTINGS,
-        ...parsed,
-        categories: Array.isArray(parsed.categories) ? parsed.categories : DEFAULT_SETTINGS.categories,
-        theme: parsed.theme === 'dark' ? 'dark' : 'light',
-      };
-    }
-  } catch (e) {
-    console.error('Failed to load settings from localStorage', e);
-  }
-  return DEFAULT_SETTINGS;
+    return JSON.parse(localStorage.getItem('hercules_user_settings') || '{}').theme === 'dark'
+      ? 'dark' : 'light';
+  } catch { return 'light'; }
 }
 
 export default function SidePanel({ onMinimize }: SidePanelProps) {
-  const [userSettings, setUserSettings] = useState<UserSettings>(loadSavedSettings);
-  const [activeCategory, setActiveCategory] = useState('All');
-  const [activeTab, setActiveTab] = useState<'news' | 'earnings'>('news');
-  const [news, setNews] = useState<NewsItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showSettings, setShowSettings] = useState(false);
-  const [visible, setVisible] = useState(false);
+  const [feed, setFeed] = useState<NewsState>(INITIAL_STATE);
+  const [theme, setTheme] = useState(loadTheme);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const api = window.electronAPI;
 
   useEffect(() => {
-    document.body.dataset.theme = userSettings.theme;
-  }, [userSettings.theme]);
+    document.body.dataset.theme = theme;
+    try {
+      const saved = JSON.parse(localStorage.getItem('hercules_user_settings') || '{}');
+      localStorage.setItem('hercules_user_settings', JSON.stringify({ ...saved, theme }));
+    } catch { /* Theme still works when local storage is unavailable. */ }
+  }, [theme]);
 
   useEffect(() => {
-    requestAnimationFrame(() => setVisible(true));
+    if (!api?.getNewsState) {
+      setFeed({ ...INITIAL_STATE, loading: false, error: 'Open Hercules in the desktop app to connect to its news monitor.' });
+      return;
+    }
+    let active = true;
+    let receivedUpdate = false;
+    const unsubscribe = api.onNewsState((state: NewsState) => {
+      receivedUpdate = true;
+      if (active) setFeed(state);
+    });
+    api.getNewsState().then((state: NewsState) => {
+      if (active && !receivedUpdate) setFeed(state);
+    }).catch(() => {
+      if (active) setFeed({ ...INITIAL_STATE, loading: false, error: 'Could not connect to the desktop news monitor. Restart Hercules to reconnect.' });
+    });
+    return () => { active = false; unsubscribe?.(); };
   }, []);
 
-  useEffect(() => {
-    let ignore = false;
-
-    const fetchNews = async () => {
-      const selectedCategories = Array.from(
-        new Set(
-          (userSettings.categories.length > 0 ? userSettings.categories : DEFAULT_SETTINGS.categories).map(
-            (category) => API_CATEGORY_MAP[category] ?? category.toLowerCase(),
-          ),
-        ),
-      );
-
-      setLoading(true);
-
-      try {
-        const summaries = await Promise.all(
-          selectedCategories.map(async (apiCategory) => {
-            const response = await fetch(
-              `http://localhost:8000/news/summary?category=${encodeURIComponent(apiCategory)}`,
-            );
-            if (!response.ok) {
-              throw new Error(`Request failed for ${apiCategory}`);
-            }
-            return response.json();
-          }),
-        );
-
-        const merged: NewsItem[] = [];
-        summaries.forEach((payload) => {
-          const items = payload?.briefing?.articles ?? [];
-          items.forEach((article: any) => {
-            merged.push({
-              id: `${article.url}-${article.title}`,
-              title: article.title,
-              summary: article.summary || article.description || 'No summary available.',
-              category: article.category || 'General',
-              source: article.source || 'Unknown source',
-              url: article.url,
-              publishedAt: new Date().toISOString(),
-              readTime: Math.max(2, Math.ceil((article.summary || '').length / 200)),
-            });
-          });
-        });
-
-        if (!ignore) {
-          setNews(merged.length > 0 ? merged : MOCK_NEWS.filter((item) => userSettings.categories.includes(item.category)));
-        }
-      } catch (error) {
-        console.warn('Using fallback news data because the backend was unavailable.', error);
-        if (!ignore) {
-          setNews(MOCK_NEWS.filter((item) => userSettings.categories.includes(item.category)));
-        }
-      } finally {
-        if (!ignore) {
-          setLoading(false);
-        }
-      }
-    };
-
-    fetchNews();
-    return () => {
-      ignore = true;
-    };
-  }, [userSettings.categories]);
-
-  const handleMinimize = () => {
-    setVisible(false);
-    setTimeout(onMinimize, 300);
+  const perform = async (action: () => unknown) => {
+    setActionError(null);
+    try { await action(); }
+    catch (error) { setActionError(error instanceof Error ? error.message : 'The action could not be completed.'); }
   };
-
-  const handleSaveSettings = (newSettings: UserSettings) => {
-    setUserSettings(newSettings);
-    try {
-      localStorage.setItem('hercules_user_settings', JSON.stringify(newSettings));
-    } catch (e) {
-      console.error('Failed to save settings to localStorage', e);
-    }
-  };
-
-  const availableCategories = ['All', ...ALL_CATEGORIES.filter((c) => userSettings.categories.includes(c))];
-
-  const filtered = news
-    .filter((n) => userSettings.categories.includes(n.category))
-    .filter((n) => activeCategory === 'All' || n.category === activeCategory);
+  const checkedAt = feed.lastChecked ? new Date(feed.lastChecked) : null;
+  const lastChecked = checkedAt && Number.isFinite(checkedAt.getTime())
+    ? `Checked ${checkedAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
+    : 'Waiting for first check';
 
   return (
-    <div className={`panel-root ${visible ? 'panel-visible' : ''}`}>
-      <div className="panel-header">
-        <div className="panel-logo">
-          <div className="logo-badge">H</div>
-          <span className="logo-text">ercules</span>
+    <main className="panel-root panel-visible">
+      <header className="panel-header">
+        <div className="panel-brand">
+          <div className="logo-badge" aria-hidden="true">H</div>
+          <div><h1>Hercules</h1><p>Market news, within reach</p></div>
         </div>
         <div className="panel-header-actions">
-          <button
-            className="icon-btn"
-            onClick={() => setShowSettings(!showSettings)}
-            title="Settings"
-          >
-            ⚙
-          </button>
-          <button
-            className="icon-btn minimize-btn"
-            onClick={handleMinimize}
-            title="Minimize"
-          >
-            ✕
-          </button>
+          <button className="icon-btn" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} title={`Use ${theme === 'dark' ? 'light' : 'dark'} theme`} aria-label={`Use ${theme === 'dark' ? 'light' : 'dark'} theme`}>{theme === 'dark' ? '☀' : '☾'}</button>
+          <button className="icon-btn minimize-btn" onClick={onMinimize} title="Hide to menu bar" aria-label="Hide to menu bar">—</button>
+          <button className="icon-btn" onClick={() => api?.quitApp()} title="Quit Hercules" aria-label="Quit Hercules">×</button>
         </div>
+      </header>
+      <section className="feed-controls" aria-label="News controls">
+        <div className="mode-switch" aria-label="News source">
+          <button className={feed.mode === 'demo' ? 'mode-active' : ''} aria-pressed={feed.mode === 'demo'} disabled={!api} onClick={() => perform(() => api?.setNewsMode('demo'))}>Demo</button>
+          <button className={feed.mode === 'live' ? 'mode-active' : ''} aria-pressed={feed.mode === 'live'} disabled={!api} onClick={() => perform(() => api?.setNewsMode('live'))}>Live news</button>
+        </div>
+        <button className="text-button" disabled={!api || feed.loading} onClick={() => perform(() => api?.refreshNews())}>{feed.loading ? 'Checking…' : 'Refresh ↻'}</button>
+      </section>
+      <div className={`source-notice ${feed.mode === 'demo' ? 'source-notice--demo' : ''}`}>
+        <strong>{feed.mode === 'demo' ? 'Demo · sample stories' : 'Live · business headlines'}</strong>
+        <p>{feed.mode === 'demo' ? 'Try the alert flow with clearly labeled examples.' : 'Checks your backend every 15 minutes. Tickers appear when provided by the source.'}</p>
+        {feed.mode === 'demo' && <button className="test-alert-btn" disabled={!api} onClick={() => perform(() => api?.simulateNews())}>Send a test alert ↗</button>}
       </div>
-
-      {showSettings ? (
-        <Settings
-          onClose={() => setShowSettings(false)}
-          currentSettings={userSettings}
-          onSaveSettings={handleSaveSettings}
-        />
-      ) : (
-        <>
-          <div className="tab-bar">
-            <button
-              className={`tab-btn ${activeTab === 'news' ? 'tab-btn--active' : ''}`}
-              onClick={() => setActiveTab('news')}
-            >
-              News
-            </button>
-            <button
-              className={`tab-btn ${activeTab === 'earnings' ? 'tab-btn--active' : ''}`}
-              onClick={() => setActiveTab('earnings')}
-            >
-              Earnings
-            </button>
-          </div>
-
-          {activeTab === 'news' ? (
-            <>
-              <div className="category-scroll">
-                {availableCategories.map((cat) => (
-                  <button
-                    key={cat}
-                    className={`cat-pill ${activeCategory === cat ? 'cat-pill--active' : ''}`}
-                    onClick={() => setActiveCategory(cat)}
-                  >
-                    {cat}
-                  </button>
-                ))}
-              </div>
-
-              <div className="ai-badge">
-                <span className="ai-dot" />
-                <span>AI Summarized · {filtered.length} stories</span>
-              </div>
-
-              <div className="news-feed">
-                {loading ? (
-                  <div className="skeleton-list">
-                    {[1, 2, 3].map((i) => (
-                      <div key={i} className="skeleton-card">
-                        <div className="skeleton-line skeleton-line--title" />
-                        <div className="skeleton-line skeleton-line--body" />
-                        <div className="skeleton-line skeleton-line--body short" />
-                      </div>
-                    ))}
-                  </div>
-                ) : filtered.length === 0 ? (
-                  <div className="empty-state">No stories in this category</div>
-                ) : (
-                  filtered.map((item, idx) => (
-                    <NewsCard key={item.id} item={item} index={idx} />
-                  ))
-                )}
-              </div>
-            </>
-          ) : (
-            <div className="earnings-placeholder">
-              <div className="earnings-placeholder-icon">H</div>
-              <div className="earnings-placeholder-title">Earnings Intelligence</div>
-              <div className="earnings-placeholder-text">AI-powered earnings predictions coming soon</div>
-            </div>
-          )}
-
-          <div className="panel-footer">
-            <span>Refreshed just now</span>
-            <span>Hercules AI</span>
-          </div>
-        </>
-      )}
-    </div>
+      <div className="feed-heading"><h2>Latest stories</h2><span>{feed.articles.length} stories</span></div>
+      <div className="news-feed" aria-label="News stories" aria-busy={feed.loading}>
+        {(feed.error || actionError) && <div className="feed-error" role="alert">{actionError || feed.error}</div>}
+        {feed.loading && feed.articles.length === 0 ? <div className="empty-state" role="status">Checking for news…</div>
+          : feed.articles.length === 0 ? <div className="empty-state"><strong>No stories yet</strong><p>{feed.mode === 'live' ? 'Check that the backend is running with a valid news API key, then refresh.' : 'Send a test alert to see how news appears.'}</p></div>
+          : feed.articles.map((article, index) => <NewsCard key={article.id} item={article} index={index} />)}
+      </div>
+      <footer className="panel-footer"><span role="status">{lastChecked}</span><span>Monitoring continues when hidden</span></footer>
+    </main>
   );
 }
