@@ -19,18 +19,23 @@
 }
 
 body[data-theme='dark'] {
-  --bg-panel: rgba(16, 18, 22, 0.96);
-  --bg-card: #1d1f26;
+  color-scheme: dark;
+  --bg-panel: rgba(43, 44, 46, 0.78);
+  --bg-surface: rgba(255, 255, 255, 0.035);
+  --bg-card: #343436;
   --bg-hover: rgba(255, 255, 255, 0.06);
   --border: rgba(255, 255, 255, 0.1);
-  --border-strong: rgba(255, 255, 255, 0.18);
-  --text-primary: #f3f4f6;
-  --text-secondary: #d1d5db;
-  --text-muted: #9ca3af;
+  --border-strong: rgba(255, 255, 255, 0.24);
+  --text-primary: #e4e4e5;
+  --text-secondary: #c4c4c6;
+  --text-muted: #99999d;
   --accent-black: #f3f4f6;
   --accent-grey: #c4c8cf;
-  --shadow-panel: 0 8px 30px rgba(0, 0, 0, 0.38);
+  --shadow-panel: inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 8px 30px rgba(0, 0, 0, 0.38);
 }
+
+body[data-theme='dark'] ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.18); }
+body[data-theme='dark'] ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.28); }
 
 /* ──────────────────────────────────────────────
    RESET & BASE
@@ -45,7 +50,6 @@ html, body, #root {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: transparent;
   font-family: var(--font);
   font-size: 13px;
   color: var(--text-primary);
@@ -54,7 +58,6 @@ html, body, #root {
 
 /* Minimalist Scrollbar */
 ::-webkit-scrollbar { width: 4px; }
-::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.15); border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(0, 0, 0, 0.3); }
 

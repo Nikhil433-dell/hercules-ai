@@ -1,3 +1,12 @@
+export interface StockQuote {
+  symbol: string;
+  price: number | null;
+  currency: string | null;
+  asOf: string | null;
+  error?: string;
+  source?: string;
+}
+
 export interface NewsItem {
   id: string;
   title: string;
@@ -7,27 +16,36 @@ export interface NewsItem {
   url: string;
   publishedAt: string;
   tickers: string[];
+  quotes: StockQuote[];
   eventType?: string;
 }
 
 export interface NewsState {
   articles: NewsItem[];
-  mode: 'demo' | 'live';
+  category: string;
   loading: boolean;
   error: string | null;
   lastChecked: string | null;
+  refreshIntervalSeconds: number;
+}
+
+export interface WindowView {
+  kind: 'panel' | 'popup' | 'article';
+  article: NewsItem | null;
 }
 
 export interface ElectronAPI {
   getNewsState: () => Promise<NewsState>;
   onNewsState: (callback: (state: NewsState) => void) => () => void;
-  setNewsMode: (mode: 'demo' | 'live') => void;
-  simulateNews: () => void;
   refreshNews: () => void;
+  setCategory: (category: string) => void;
   minimizePanel: () => void;
   expandPanel: () => void;
   quitApp: () => void;
   openExternal: (url: string) => void;
+  openArticle: (id: string) => void;
+  getWindowView: () => Promise<WindowView>;
+  onWindowView: (callback: (view: WindowView) => void) => () => void;
 }
 
 declare global {

@@ -29,21 +29,26 @@ class NewsFetcher:
         """Fetch news by category. Tries GNews first, falls back to NewsAPI."""
         # Try GNews first
         try:
-            articles = await self._fetch_from_gnews(category, max_results)
+            articles = await self._fetch_from_gnews(category, max_results) if self.gnews_api_key else []
             if articles:
                 logger.info(f"Fetched {len(articles)} articles from GNews for '{category}'")
                 return articles
         except Exception as e:
-            logger.warning(f"GNews API failed: {e}. Falling back to NewsAPI.")
+            logger.warning("GNews request failed (%s); falling back to NewsAPI.", type(e).__name__)
 
         # Fallback to NewsAPI
         try:
-            articles = await self._fetch_from_newsapi(category, max_results)
+            # NewsAPI has no 'world' category; US general headlines are its fallback.
+            articles = await self._fetch_from_newsapi(
+                "general" if category == "world" else category, max_results,
+            ) if self.newsapi_key else []
+            for article in articles:
+                article["category"] = category
             if articles:
                 logger.info(f"Fetched {len(articles)} articles from NewsAPI for '{category}'")
                 return articles
         except Exception as ex:
-            logger.error(f"Both news APIs failed for '{category}'. NewsAPI error: {ex}")
+            logger.error("NewsAPI request failed for %s (%s).", category, type(ex).__name__)
 
         return []
 

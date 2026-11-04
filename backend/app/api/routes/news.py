@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Request, HTTPException, Query
 
 from app.config import settings
+from app.services.live_feed import FeedUnavailable
 from app.models.schemas import (
     CategoryEnum,
     SummaryResponse,
@@ -17,6 +18,15 @@ from app.models.schemas import (
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+@router.get("/feed")
+async def get_live_feed(request: Request, category: CategoryEnum = CategoryEnum.BUSINESS):
+    """Deliver live provider headlines and optional quotes without LLM or Redis."""
+    try:
+        return await request.app.state.live_feed.get_feed(category.value)
+    except FeedUnavailable as error:
+        raise HTTPException(status_code=503, detail=str(error), headers={"Retry-After": "60"}) from None
 
 
 @router.get("/summary", response_model=SummaryResponse)

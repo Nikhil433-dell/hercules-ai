@@ -7,6 +7,9 @@ import { AutoUnpackNativesPlugin } from '@electron-forge/plugin-auto-unpack-nati
 import { WebpackPlugin } from '@electron-forge/plugin-webpack';
 import { FusesPlugin } from '@electron-forge/plugin-fuses';
 import { FuseV1Options, FuseVersion } from '@electron/fuses';
+import { execFileSync } from 'child_process';
+import { mkdirSync } from 'fs';
+import * as path from 'path';
 
 import { mainConfig } from './webpack.main.config';
 import { rendererConfig } from './webpack.renderer.config';
@@ -14,6 +17,15 @@ import { rendererConfig } from './webpack.renderer.config';
 const config: ForgeConfig = {
   packagerConfig: {
     asar: true,
+    extraResource: process.platform === 'darwin' ? [path.join(__dirname, 'native/bin/outside-click')] : [],
+  },
+  hooks: {
+    generateAssets: async () => {
+      if (process.platform !== 'darwin') return;
+      const output = path.join(__dirname, 'native/bin');
+      mkdirSync(output, { recursive: true });
+      execFileSync('clang', ['-fobjc-arc', '-framework', 'Cocoa', path.join(__dirname, 'native/outside-click.m'), '-o', path.join(output, 'outside-click')], { stdio: 'inherit' });
+    },
   },
   rebuildConfig: {},
   makers: [

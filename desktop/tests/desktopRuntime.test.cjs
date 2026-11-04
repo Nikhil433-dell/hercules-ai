@@ -1,0 +1,126 @@
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+const { EventEmitter } = require('node:events');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
+const ts = require('typescript');
+
+async function launch(deferReady = false) {
+  const windows = [], handlers = new Map(), events = new EventEmitter();
+  let tray, monitor, outsideClick, watching = false;
+  const state = { articles: [], category: 'business', loading: false, error: null, lastChecked: null, refreshIntervalSeconds: 60 };
+  class Window extends EventEmitter {
+    static getAllWindows() { return windows; }
+    static fromWebContents(contents) { return windows.find((window) => window.webContents === contents); }
+    constructor(options) {
+      super(); this.options = options; this.id = windows.length + 1; this.visible = false; this.focusCount = 0;
+      this.rectangle = { x: options.x, y: options.y, width: options.width, height: options.height };
+      this.webContents = new EventEmitter(); this.webContents.id = this.id;
+      this.webContents.send = () => {}; this.webContents.setWindowOpenHandler = () => {};
+      windows.push(this);
+    }
+    loadURL() { if (!deferReady) queueMicrotask(() => this.emit('ready-to-show')); return Promise.resolve(); }
+    isDestroyed() { return false; }
+    isVisible() { return this.visible; }
+    setBounds(rect) { this.rectangle = rect; }
+    getBounds() { return this.rectangle; }
+    show() { this.visible = true; this.emit('show'); }
+    showInactive() { this.visible = true; this.emit('show'); }
+    focus() { this.focusCount += 1; }
+    hide() { const wasVisible = this.visible; this.visible = false; if (wasVisible) this.emit('hide'); }
+  }
+  class MockTray extends EventEmitter {
+    constructor() { super(); tray = this; }
+    getBounds() { return { x: 1800, y: 0, width: 18, height: 25 }; }
+    setToolTip() {} popUpContextMenu() {}
+  }
+  class Monitor {
+    constructor(dependencies) { this.dependencies = dependencies; monitor = this; }
+    getState() { return state; }
+    start() {} stop() {} refresh() { return Promise.resolve(); }
+    setCategory(category) { state.category = category; }
+  }
+  const app = new EventEmitter();
+  app.whenReady = () => Promise.resolve(); app.dock = { hide() {} };
+  app.setName = () => {}; app.getPath = () => '/tmp/hercules-runtime-test'; app.quit = () => {};
+  const display = () => ({ workArea: { x: 0, y: 25, width: 1920, height: 1055 } });
+  const electron = {
+    app, BrowserWindow: Window, Tray: MockTray,
+    ipcMain: { handle: (name, fn) => handlers.set(name, fn), on: (name, fn) => events.on(name, fn) },
+    nativeImage: { createFromDataURL: () => ({ resize: () => ({ setTemplateImage() {} }) }) },
+    Menu: { buildFromTemplate: (template) => template }, screen: { getDisplayMatching: display, getPrimaryDisplay: display },
+    powerMonitor: new EventEmitter(), net: {}, shell: { openExternal: () => Promise.resolve() },
+  };
+  const filename = path.resolve(__dirname, '../src/index.ts');
+  const compiled = ts.transpileModule(fs.readFileSync(filename, 'utf8'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true },
+  }).outputText;
+  vm.runInNewContext(compiled, {
+    require: (name) => {
+      if (name === 'electron') return electron;
+      if (name === 'electron-squirrel-startup') return false;
+      if (name === './services/newsMonitor') return { NewsMonitor: Monitor };
+      if (name === './services/outsideClick') return { startOutsideClickMonitor: (callback) => { outsideClick = callback; watching = true; return () => { watching = false; }; } };
+      return require(name);
+    },
+    exports: {}, process: { platform: 'darwin', env: {} }, console,
+    MAIN_WINDOW_WEBPACK_ENTRY: 'http://localhost:3000/main_window', MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY: '/tmp/preload.js',
+    URL, setTimeout, clearTimeout, AbortController,
+  }, { filename });
+  await new Promise((resolve) => setImmediate(resolve));
+  return { windows, events, handlers, state, get tray() { return tray; }, get monitor() { return monitor; }, outside: (point) => outsideClick(point), watching: () => watching };
+}
+const story = { id: 'actual-story', title: 'Actual company news', url: 'https://example.com/story', tickers: [], quotes: [] };
+
+test('startup hidden; H opens panel; new story opens inactive quarter-height popup; detail is separate and dismissible', async () => {
+  const runtime = await launch();
+  const [panel, popup, detail] = runtime.windows;
+  assert.equal(runtime.windows.length, 3);
+  assert.ok(runtime.windows.every((window) => !window.isVisible()));
+  runtime.tray.emit('click');
+  assert.equal(panel.isVisible(), true);
+  assert.equal(panel.getBounds().width, 260);
+  assert.equal(panel.getBounds().height, 680);
+  runtime.events.emit('minimize-panel', { sender: panel.webContents });
+  assert.equal(panel.isVisible(), false);
+  runtime.state.articles = [story];
+  runtime.monitor.dependencies.onArticle(story);
+  assert.equal(popup.isVisible(), true);
+  assert.equal(popup.getBounds().height, 170);
+  assert.equal(popup.getBounds().width, 260);
+  assert.equal(popup.focusCount, 0);
+  assert.equal(panel.isVisible(), false);
+  assert.equal(detail.isVisible(), false);
+  assert.equal(runtime.watching(), true);
+  runtime.outside({ x: 20, y: 20 });
+  assert.equal(popup.isVisible(), false);
+  assert.equal(runtime.watching(), false);
+  runtime.monitor.dependencies.onArticle(story);
+  runtime.events.emit('open-article', { sender: popup.webContents }, story.id);
+  assert.equal(popup.isVisible(), false);
+  assert.equal(detail.isVisible(), true);
+  assert.equal(detail.getBounds().width, 360);
+  assert.equal(detail.getBounds().height, 540);
+  const view = runtime.handlers.get('get-window-view')({ sender: detail.webContents });
+  assert.equal(view.kind, 'article');
+  assert.equal(view.article.id, story.id);
+  detail.emit('blur');
+  assert.equal(detail.isVisible(), false);
+  runtime.events.emit('open-article', { sender: panel.webContents }, story.id);
+  let prevented = false;
+  detail.webContents.emit('before-input-event', { preventDefault() { prevented = true; } }, { key: 'Escape' });
+  assert.equal(prevented, true);
+  assert.equal(detail.isVisible(), false);
+});
+
+test('opening panel before popup renderer is ready cancels pending popup', async () => {
+  const runtime = await launch(true);
+  const [panel, popup] = runtime.windows;
+  runtime.monitor.dependencies.onArticle(story);
+  runtime.tray.emit('click');
+  popup.emit('ready-to-show');
+  panel.emit('ready-to-show');
+  assert.equal(panel.isVisible(), true);
+  assert.equal(popup.isVisible(), false);
+});

@@ -13,6 +13,7 @@ from app.api.websocket import websocket_endpoint
 from app.services.news_fetcher import NewsFetcher
 from app.services.summarizer import NewsSummarizer
 from app.services.cache import CacheService
+from app.services.live_feed import LiveFeedService
 from app.models.schemas import HealthResponse
 
 # Configure logging
@@ -21,6 +22,9 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
+# Provider URLs may contain credentials; don't emit HTTP request/debug traces.
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 # Track app start time for uptime calculation
 _start_time: float = 0.0
@@ -41,6 +45,9 @@ async def lifespan(app: FastAPI):
     )
     app.state.summarizer = NewsSummarizer(
         openai_api_key=settings.OPENAI_API_KEY,
+    )
+    app.state.live_feed = LiveFeedService(
+        app.state.news_fetcher, finnhub_api_key=settings.FINNHUB_API_KEY,
     )
     app.state.cache = CacheService(
         redis_url=settings.REDIS_URL,

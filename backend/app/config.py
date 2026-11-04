@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     # News API Keys
     GNEWS_API_KEY: str = ""
     NEWSAPI_KEY: str = ""
+    FINNHUB_API_KEY: str = ""
 
     # LLM
     OPENAI_API_KEY: str = ""

@@ -1,40 +1,44 @@
-import { createHash, randomUUID } from 'crypto';
-import type { NewsItem, NewsState } from '../shared/news';
+import { createHash } from 'crypto';
+import type { NewsItem, NewsState, StockQuote } from '../shared/news';
+
+export const NEWS_CATEGORIES = ['business', 'general', 'technology', 'science', 'health', 'sports', 'entertainment', 'world'];
+const REFRESH_SECONDS = 60;
 
 export interface MonitorStorage {
-  mode?: 'demo' | 'live';
+  category?: string;
   seen?: string[];
-  initialized?: boolean;
 }
-
 interface Dependencies {
   load: () => MonitorStorage;
   save: (value: MonitorStorage) => void;
-  fetchHeadlines: () => Promise<unknown>;
+  fetchHeadlines: (category: string) => Promise<unknown>;
   onState: (state: NewsState) => void;
   onArticle: (article: NewsItem) => void;
 }
 
-function sampleArticle(): NewsItem {
+function parseQuote(value: unknown): StockQuote | null {
+  if (!value || typeof value !== 'object') return null;
+  const quote = value as Record<string, unknown>;
+  if (typeof quote.symbol !== 'string') return null;
   return {
-    id: `demo-${randomUUID()}`,
-    title: '[Demo] Apple earnings alert preview',
-    summary: 'This is a simulated story to test background alerts. It does not describe an actual earnings release. Open the company newsroom for real announcements.',
-    source: 'Hercules demo',
-    category: 'Finance',
-    url: 'https://www.apple.com/newsroom/',
-    publishedAt: new Date().toISOString(),
-    tickers: ['AAPL'],
-    eventType: 'Demo earnings',
+    symbol: quote.symbol,
+    price: typeof quote.price === 'number' && Number.isFinite(quote.price) && quote.price > 0 ? quote.price : null,
+    currency: typeof quote.currency === 'string' ? quote.currency : null,
+    asOf: typeof quote.as_of === 'string' ? quote.as_of : typeof quote.asOf === 'string' ? quote.asOf : null,
+    error: typeof quote.error === 'string' ? quote.error : undefined,
+    source: typeof quote.source === 'string' ? quote.source : undefined,
   };
 }
 
 export function normalizeHeadlines(payload: unknown): NewsItem[] {
   if (!payload || typeof payload !== 'object' || !Array.isArray((payload as { articles?: unknown }).articles)) {
-    throw new Error('The backend returned an invalid headlines response.');
+    throw new Error('The backend returned an invalid news response.');
   }
   const articles = (payload as { articles: Record<string, unknown>[] }).articles;
-  const normalized = articles.filter((article) => article && typeof article.title === 'string' && typeof article.url === 'string')
+  const normalized = articles.filter((article) => {
+    if (!article || typeof article.title !== 'string' || typeof article.url !== 'string') return false;
+    try { return ['https:', 'http:'].includes(new URL(article.url).protocol); } catch { return false; }
+  })
     .map((article) => {
       const url = new URL(article.url as string);
       if (!['https:', 'http:'].includes(url.protocol)) throw new Error('The backend returned an unsupported article link.');
@@ -42,114 +46,108 @@ export function normalizeHeadlines(payload: unknown): NewsItem[] {
       Array.from(url.searchParams.keys()).forEach((key) => {
         if (key.startsWith('utm_')) url.searchParams.delete(key);
       });
+      url.searchParams.sort();
       const published = typeof article.published_at === 'string' && Number.isFinite(Date.parse(article.published_at))
         ? new Date(article.published_at).toISOString() : '';
       return {
         id: createHash('sha256').update(url.toString()).digest('hex'),
         title: article.title as string,
-        summary: typeof article.description === 'string' ? article.description : '',
+        summary: typeof article.description === 'string' ? article.description : typeof article.summary === 'string' ? article.summary : '',
         source: typeof article.source === 'string' ? article.source : 'Unknown source',
-        category: 'Finance',
+        category: typeof article.category === 'string' ? article.category : 'business',
         url: article.url as string,
         publishedAt: published,
         tickers: Array.isArray(article.tickers)
           ? article.tickers.filter((ticker): ticker is string => typeof ticker === 'string' && /^[A-Z][A-Z0-9.-]{0,9}$/.test(ticker)) : [],
+        quotes: Array.isArray(article.quotes) ? article.quotes.map(parseQuote).filter((quote): quote is StockQuote => quote !== null) : [],
         eventType: typeof article.event_type === 'string' ? article.event_type : undefined,
       };
     });
-  return Array.from(new Map(normalized.map((article) => [article.id, article])).values());
+  return Array.from(new Map(normalized.map((article) => [article.id, article])).values())
+    .sort((a, b) => (Date.parse(b.publishedAt) || 0) - (Date.parse(a.publishedAt) || 0));
 }
 
 export class NewsMonitor {
   private state: NewsState;
   private seen: Set<string>;
-  private initialized: boolean;
+  private initialized = false;
   private timer: ReturnType<typeof setInterval> | undefined;
   private generation = 0;
-  private busy = false;
+  private inFlightGeneration: number | null = null;
 
   constructor(private dependencies: Dependencies) {
     const loaded = dependencies.load();
     const stored = loaded && typeof loaded === 'object' ? loaded : {};
     this.seen = new Set(Array.isArray(stored.seen) ? stored.seen.filter((id): id is string => typeof id === 'string') : []);
-    this.initialized = stored.initialized === true;
     this.state = {
-      mode: stored.mode === 'live' ? 'live' : 'demo',
-      articles: [], loading: false, error: null, lastChecked: null,
+      category: typeof stored.category === 'string' && NEWS_CATEGORIES.includes(stored.category) ? stored.category : 'business',
+      articles: [], loading: false, error: null, lastChecked: null, refreshIntervalSeconds: REFRESH_SECONDS,
     };
-    if (this.state.mode === 'demo') this.state.articles = [sampleArticle()];
   }
 
   getState(): NewsState { return this.state; }
 
   start(): void {
+    if (this.timer) return;
     void this.refresh();
-    this.timer = setInterval(() => { void this.refresh(); }, 15 * 60 * 1000);
+    this.timer = setInterval(() => { void this.refresh(); }, REFRESH_SECONDS * 1000);
   }
 
   stop(): void {
     if (this.timer) clearInterval(this.timer);
+    this.timer = undefined;
     this.generation += 1;
   }
 
-  setMode(mode: 'demo' | 'live'): void {
-    if (mode === this.state.mode) return;
+  setCategory(category: string): void {
+    if (!NEWS_CATEGORIES.includes(category) || category === this.state.category) return;
     this.generation += 1;
-    this.busy = false;
-    this.state = { mode, articles: mode === 'demo' ? [sampleArticle()] : [], loading: false, error: null, lastChecked: null };
+    this.initialized = false;
+    this.state = { ...this.state, category, articles: [], loading: false, error: null, lastChecked: null };
     this.persist();
     this.emit();
     void this.refresh();
   }
 
-  simulate(): void {
-    if (this.state.mode !== 'demo') this.setMode('demo');
-    const article = sampleArticle();
-    this.state = { ...this.state, articles: [article, ...this.state.articles].slice(0, 50), lastChecked: new Date().toISOString() };
-    this.emit();
-    this.dependencies.onArticle(article);
-  }
-
   async refresh(): Promise<void> {
-    if (this.state.mode === 'demo') {
-      this.state = { ...this.state, lastChecked: new Date().toISOString() };
-      this.emit();
-      return;
-    }
-    if (this.busy) return;
-    this.busy = true;
     const generation = this.generation;
+    if (this.inFlightGeneration === generation) return;
+    this.inFlightGeneration = generation;
     this.state = { ...this.state, loading: true, error: null };
     this.emit();
     try {
-      const articles = normalizeHeadlines(await this.dependencies.fetchHeadlines());
+      const payload = await this.dependencies.fetchHeadlines(this.state.category);
+      const articles = normalizeHeadlines(payload);
       if (generation !== this.generation) return;
       const fresh = articles.filter((article) => !this.seen.has(article.id));
       const shouldNotify = this.initialized;
       articles.forEach((article) => this.seen.add(article.id));
-      this.seen = new Set(Array.from(this.seen).slice(-2000));
+      this.seen = new Set(Array.from(this.seen).slice(-5000));
       if (articles.length > 0) this.initialized = true;
-      // Persist before notifying so a restart cannot replay the same alerts.
       const saved = this.persist();
-      this.state = { ...this.state, articles, loading: false, lastChecked: new Date().toISOString(), error: !saved ? 'Could not save notification history. Alerts are paused until storage is writable.' : articles.length === 0 ? 'No finance headlines returned. Check the backend news provider configuration.' : null };
+      this.state = {
+        ...this.state, articles, loading: false, lastChecked: new Date().toISOString(),
+        error: !saved ? 'Could not save alert history. Alerts are paused until storage is writable.' : articles.length === 0 ? 'No stories returned for this category.' : null,
+      };
       this.emit();
-      if (shouldNotify && saved) fresh.slice(0, 3).forEach((article) => this.dependencies.onArticle(article));
+      // A burst creates one unobtrusive popup containing the newest story.
+      if (shouldNotify && saved && fresh.length > 0) this.dependencies.onArticle(fresh[0]);
     } catch (error) {
       if (generation !== this.generation) return;
       this.state = { ...this.state, loading: false, error: error instanceof Error ? error.message : 'Unable to load news.' };
       this.emit();
     } finally {
-      if (generation === this.generation) this.busy = false;
+      if (this.inFlightGeneration === generation) this.inFlightGeneration = null;
     }
   }
 
   private emit(): void { this.dependencies.onState(this.state); }
   private persist(): boolean {
     try {
-      this.dependencies.save({ mode: this.state.mode, seen: Array.from(this.seen), initialized: this.initialized });
+      this.dependencies.save({ category: this.state.category, seen: Array.from(this.seen) });
       return true;
     } catch {
-      this.state = { ...this.state, error: 'Could not save notification settings. Check available disk space and file permissions.' };
+      this.state = { ...this.state, error: 'Could not save settings. Check available disk space and file permissions.' };
       return false;
     }
   }

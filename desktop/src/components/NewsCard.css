@@ -1,4 +1,4 @@
-.news-card { display: flex; flex-direction: column; flex-shrink: 0; gap: 7px; padding: 13px; border-radius: 9px; border: 1px solid var(--border); background: var(--bg-card); animation: card-enter .2s ease both; }
+.news-card { display: flex; flex-direction: column; flex-shrink: 0; gap: 7px; padding: 10px; border-radius: 9px; border: 1px solid var(--border); background: var(--bg-surface, var(--bg-card)); animation: card-enter .2s ease both; }
 @keyframes card-enter { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
 .card-meta { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
 .card-source { font-size: 10px; font-weight: 600; color: var(--text-secondary); overflow-wrap: anywhere; }
@@ -12,7 +12,17 @@
 .ticker-links { display: flex; flex-wrap: wrap; gap: 4px; }
 .ticker-button { color: var(--text-primary); background: var(--bg-hover); border: 1px solid var(--border); padding: 5px 7px; border-radius: 5px; font-size: 10px; font-weight: 700; }
 .ticker-button:hover { border-color: var(--text-primary); }
-.article-button { color: var(--bg-card); background: var(--text-primary); border-radius: 5px; padding: 6px 9px; font-size: 10px; font-weight: 600; }
+.article-button { color: var(--text-primary); background: var(--bg-hover); border: 1px solid var(--border); border-radius: 5px; padding: 6px 9px; font-size: 10px; font-weight: 600; }
 .article-button:hover { opacity: .8; }
 .no-ticker { font-size: 9px; color: var(--text-muted); }
 @media (prefers-reduced-motion: reduce) { .news-card { animation: none; } }
+.card-open { text-align: left; color: inherit; }
+.card-open:hover .card-title { color: var(--text-secondary); }
+.card-excerpt { margin-top: 5px; font-size: 10px; line-height: 1.6; color: var(--text-muted); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.story-button { font-size: 10px; color: var(--text-secondary); }
+.stock-quotes { display: flex; flex-direction: column; gap: 4px; }
+.stock-quote { text-align: left; border-radius: 5px; border: 1px solid var(--border); padding: 6px 7px; color: var(--text-secondary); background: var(--bg-hover); }
+.stock-quote:hover { border-color: var(--border-strong); }
+.quote-line { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; font-size: 10px; }
+.quote-line strong { color: var(--text-primary); font-weight: 650; }
+.quote-time { display: block; margin-top: 3px; font-size: 8px; color: var(--text-muted); }

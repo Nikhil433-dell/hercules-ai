@@ -6,14 +6,13 @@ import './SidePanel.css';
 interface SidePanelProps { onMinimize: () => void; }
 
 const INITIAL_STATE: NewsState = {
-  articles: [], mode: 'demo', loading: true, error: null, lastChecked: null,
+  articles: [], category: 'business', loading: true, error: null, lastChecked: null, refreshIntervalSeconds: 60,
 };
 
 function loadTheme(): 'light' | 'dark' {
   try {
-    return JSON.parse(localStorage.getItem('hercules_user_settings') || '{}').theme === 'dark'
-      ? 'dark' : 'light';
-  } catch { return 'light'; }
+    return localStorage.getItem('hercules_panel_theme') === 'light' ? 'light' : 'dark';
+  } catch { return 'dark'; }
 }
 
 export default function SidePanel({ onMinimize }: SidePanelProps) {
@@ -25,6 +24,7 @@ export default function SidePanel({ onMinimize }: SidePanelProps) {
   useEffect(() => {
     document.body.dataset.theme = theme;
     try {
+      localStorage.setItem('hercules_panel_theme', theme);
       const saved = JSON.parse(localStorage.getItem('hercules_user_settings') || '{}');
       localStorage.setItem('hercules_user_settings', JSON.stringify({ ...saved, theme }));
     } catch { /* Theme still works when local storage is unavailable. */ }
@@ -64,7 +64,7 @@ export default function SidePanel({ onMinimize }: SidePanelProps) {
       <header className="panel-header">
         <div className="panel-brand">
           <div className="logo-badge" aria-hidden="true">H</div>
-          <div><h1>Hercules</h1><p>Market news, within reach</p></div>
+          <div><h1 aria-label="Hercules">ercules</h1><p>Market news, within reach</p></div>
         </div>
         <div className="panel-header-actions">
           <button className="icon-btn" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} title={`Use ${theme === 'dark' ? 'light' : 'dark'} theme`} aria-label={`Use ${theme === 'dark' ? 'light' : 'dark'} theme`}>{theme === 'dark' ? '☀' : '☾'}</button>
@@ -73,25 +73,29 @@ export default function SidePanel({ onMinimize }: SidePanelProps) {
         </div>
       </header>
       <section className="feed-controls" aria-label="News controls">
-        <div className="mode-switch" aria-label="News source">
-          <button className={feed.mode === 'demo' ? 'mode-active' : ''} aria-pressed={feed.mode === 'demo'} disabled={!api} onClick={() => perform(() => api?.setNewsMode('demo'))}>Demo</button>
-          <button className={feed.mode === 'live' ? 'mode-active' : ''} aria-pressed={feed.mode === 'live'} disabled={!api} onClick={() => perform(() => api?.setNewsMode('live'))}>Live news</button>
-        </div>
+        <label className="category-select-label"><span className="sr-only">News category</span>
+          <select aria-label="News category" value={feed.category} disabled={!api || feed.loading} onChange={(event) => perform(() => api?.setCategory(event.target.value))}>
+            <option value="business">Finance & business</option>
+            <option value="technology">Technology</option>
+            <option value="general">Top headlines</option>
+            <option value="world">World</option>
+            <option value="science">Science</option>
+            <option value="health">Health</option>
+            <option value="sports">Sports</option>
+            <option value="entertainment">Entertainment</option>
+          </select>
+        </label>
         <button className="text-button" disabled={!api || feed.loading} onClick={() => perform(() => api?.refreshNews())}>{feed.loading ? 'Checking…' : 'Refresh ↻'}</button>
       </section>
-      <div className={`source-notice ${feed.mode === 'demo' ? 'source-notice--demo' : ''}`}>
-        <strong>{feed.mode === 'demo' ? 'Demo · sample stories' : 'Live · business headlines'}</strong>
-        <p>{feed.mode === 'demo' ? 'Try the alert flow with clearly labeled examples.' : 'Checks your backend every 15 minutes. Tickers appear when provided by the source.'}</p>
-        {feed.mode === 'demo' && <button className="test-alert-btn" disabled={!api} onClick={() => perform(() => api?.simulateNews())}>Send a test alert ↗</button>}
-      </div>
+      <div className="live-status"><span className={`live-dot ${feed.error ? 'live-dot--error' : ''}`} /><span>{feed.error ? 'Connection needs attention' : feed.loading ? 'Checking live headlines' : 'Live headlines'}</span><span className="refresh-cadence">Every {Math.max(1, Math.round(feed.refreshIntervalSeconds / 60))} min</span></div>
       <div className="feed-heading"><h2>Latest stories</h2><span>{feed.articles.length} stories</span></div>
       <div className="news-feed" aria-label="News stories" aria-busy={feed.loading}>
         {(feed.error || actionError) && <div className="feed-error" role="alert">{actionError || feed.error}</div>}
         {feed.loading && feed.articles.length === 0 ? <div className="empty-state" role="status">Checking for news…</div>
-          : feed.articles.length === 0 ? <div className="empty-state"><strong>No stories yet</strong><p>{feed.mode === 'live' ? 'Check that the backend is running with a valid news API key, then refresh.' : 'Send a test alert to see how news appears.'}</p></div>
+          : feed.articles.length === 0 ? <div className="empty-state"><strong>No stories yet</strong><p>Check that the backend is running with a valid news API key, then refresh.</p></div>
           : feed.articles.map((article, index) => <NewsCard key={article.id} item={article} index={index} />)}
       </div>
-      <footer className="panel-footer"><span role="status">{lastChecked}</span><span>Monitoring continues when hidden</span></footer>
+      <footer className="panel-footer"><span role="status">{lastChecked}</span><span>Alerts stay on when hidden</span></footer>
     </main>
   );
 }

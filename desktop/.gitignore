@@ -84,6 +84,7 @@ typings/
 
 # Webpack
 .webpack/
+native/bin/
 
 # Vite
 .vite/

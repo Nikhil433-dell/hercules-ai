@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
-import type { ElectronAPI, NewsState } from './shared/news';
+import type { ElectronAPI, NewsState, WindowView } from './shared/news';
 
 const api: ElectronAPI = {
   getNewsState: () => ipcRenderer.invoke('get-news-state'),
@@ -8,8 +8,14 @@ const api: ElectronAPI = {
     ipcRenderer.on('news-state', listener);
     return () => ipcRenderer.removeListener('news-state', listener);
   },
-  setNewsMode: (mode) => ipcRenderer.send('set-news-mode', mode),
-  simulateNews: () => ipcRenderer.send('simulate-news'),
+  getWindowView: () => ipcRenderer.invoke('get-window-view'),
+  onWindowView: (callback) => {
+    const listener = (_event: IpcRendererEvent, view: WindowView) => callback(view);
+    ipcRenderer.on('window-view', listener);
+    return () => ipcRenderer.removeListener('window-view', listener);
+  },
+  setCategory: (category) => ipcRenderer.send('set-category', category),
+  openArticle: (id) => ipcRenderer.send('open-article', id),
   refreshNews: () => ipcRenderer.send('refresh-news'),
   minimizePanel: () => ipcRenderer.send('minimize-panel'),
   quitApp: () => ipcRenderer.send('quit-app'),

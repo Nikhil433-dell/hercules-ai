@@ -1,62 +1,69 @@
 # Hercules — Market News Desktop App
 
-Hercules lives in the macOS menu bar and opens a compact news panel. The desktop
-app starts in **Demo** mode so the icon, panel, alerts, and links can be tried
-without API keys. Sample stories are explicitly labeled; they are not market news.
+Hercules starts quietly in the macOS menu bar. Click **H** to open current news
+with category filters. New stories appear in a compact 170px popup (one quarter
+of the 680px feed panel). Click a popup or headline for a separate article view
+with stock quotes and a link to the original source. Clicking elsewhere hides
+Hercules windows. Background checks continue while the windows are hidden.
 
-## Project Structure
-```
-hercules-ai/
-├── backend/          # FastAPI + LangChain backend
-├── desktop/          # Electron + React desktop widget
-├── docs/             # Project documentation
-├── .github/          # CI/CD workflows
-└── docker-compose.yml
-```
+## Setup
 
-## Quick Start
+Install backend dependencies and configure the news provider:
 
-### Backend
 ```bash
 cd backend
-python -m venv venv
-source venv/bin/activate   # or venv\Scripts\activate on Windows
+python3 -m venv venv
+source venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env       # Fill in your API keys
-uvicorn app.main:app --reload
+cp .env.example .env  # Only if you do not already have .env
 ```
 
-### Desktop (Electron)
+Edit `backend/.env` locally. Use GNews or NewsAPI for general headlines. Add
+`FINNHUB_API_KEY` for finance stories with source-provided ticker associations
+and stock quotes. Keys stay in the backend; the desktop does not receive them.
+The feed does not require OpenAI, Redis, or Docker.
+
+Start the app and local backend together:
+
 ```bash
 cd desktop
 npm install
-npm run start
+npm start
 ```
 
-Click the H menu-bar icon to show or hide the panel. Right-click it for the
-menu, including a test-alert action. Monitoring runs in Electron's background
-process and continues while the panel is hidden. Quitting stops monitoring.
+`npm start` reuses a healthy backend or starts it with the project's Python
+virtual environment, then launches Electron hidden. Quit the desktop or stop
+this command to stop the backend it started. `npm run start:desktop` launches
+only Electron when you manage the backend separately.
 
-Each sample card has separate stock and article links. **Send a test alert**
-inserts a labeled sample story and requests a native desktop notification.
-Notification banners depend on the operating system's notification settings;
-clicking a notification opens the news panel.
+The packaged app requires a running backend. To start it separately:
 
-### Live headlines
+```bash
+cd backend
+./venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+```
 
-Start the backend with a valid GNews or NewsAPI key, then select **Live news**
-in the panel. The desktop reads `/news/headlines?category=business` from
-`http://127.0.0.1:8000`. This path does not require an OpenAI key or Redis.
-The first successful fetch establishes a baseline without alerting on old
-headlines. Subsequent new stories can notify, and seen-story IDs persist
-across app restarts. Errors appear in the panel rather than substituting samples.
+The default backend URL is `http://127.0.0.1:8000`. Set `HERCULES_API_URL` when
+launching Electron to use another trusted backend. The source launcher does not
+start a local server when a custom URL is configured.
 
-Live mode currently provides general business headlines. A dedicated financial
-feed, watchlist filtering, and earnings ingestion are future work. Ticker links
-appear only when ticker metadata is supplied; Hercules does not guess tickers
-from headlines. The current GNews/NewsAPI adapters generally provide no tickers.
+## Live news and prices
 
-### Development checks
+The desktop reads `/news/feed?category=business` and checks every 60 seconds.
+The backend caches news and quotes for 60 seconds to limit provider requests.
+Provider plan limits and publication delays still apply. Categories establish
+separate initial baselines so opening a category does not alert on old stories.
+Seen-story history persists across restarts. There is no demo mode or synthetic
+market data. Failed refreshes show an error and preserve existing headlines.
+
+Finance stories use Finnhub when configured, with GNews/NewsAPI as fallback.
+Other categories use the general news providers. Tickers appear only when the
+source supplies them. Current GNews/NewsAPI adapters usually supply no tickers.
+Quotes show their observation time; absent or failed quotes are marked
+unavailable. A missing currency is not assumed to be USD. News delivery works
+when quotes are unavailable.
+
+## Development
 
 ```bash
 cd desktop
@@ -66,14 +73,19 @@ npm test
 npm run build
 ```
 
-`build` checks TypeScript and creates a local Electron package. It does not
-publish or sign a release. See [the milestone checklist](docs/MILESTONE_1.md)
-for manual acceptance checks and the remaining product work.
+`build` creates a local Electron package, without publishing. macOS builds use
+Apple's command-line tools to compile a small mouse-event helper. It watches
+mouse-down coordinates only while a notification popup is visible, to dismiss
+an unfocused popup when you click elsewhere. It does not capture keyboard input
+or save click events. Other windows hide on focus loss and Escape.
 
-### Docker (Full Stack)
+Backend tests:
+
 ```bash
-docker compose up -d
+cd backend
+./venv/bin/pytest tests -q
 ```
 
-## Documentation
-See [docs/BLUEPRINT.md](docs/BLUEPRINT.md) for the full project blueprint.
+See [the acceptance checklist](docs/MILESTONE_1.md) and
+[the broader roadmap](docs/BLUEPRINT.md). Earnings calendars and watchlists
+remain future work.
