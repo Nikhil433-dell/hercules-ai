@@ -23,7 +23,7 @@ export default function App() {
     return () => { active = false; unsubscribe(); };
   }, []);
   if (!view) return null;
-  if (view.kind === 'popup') return view.article ? <NewsPopup article={view.article} /> : null;
+  if (view.kind === 'popup') return view.article ? <NewsPopup article={view.article} expiresAt={view.expiresAt} /> : null;
   if (view.kind === 'article') return <ArticleView article={view.article} />;
   return <SidePanel onMinimize={() => window.electronAPI?.minimizePanel()} />;
 }

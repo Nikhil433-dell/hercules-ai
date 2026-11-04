@@ -58,7 +58,7 @@ async def test_missing_key_quote_and_timestamp_are_honest():
     fetcher.fetch_by_category.return_value = [{'title': 'Actual headline', 'tickers': ['AAPL']}]
     article = (await LiveFeedService(fetcher).get_feed('business'))['articles'][0]
     assert article['quotes'][0]['price'] is None
-    assert 'FINNHUB_API_KEY' in article['quotes'][0]['error']
+    assert 'need setup' in article['quotes'][0]['error']
     assert article['published_at'] is None
 
 
@@ -126,3 +126,51 @@ def test_feed_contract(client):
     assert response.status_code == 200
     assert response.json() == {'articles': [], 'refresh_interval_seconds': 60}
     app.state.live_feed.get_feed.assert_awaited_once_with('general')
+
+
+@pytest.mark.asyncio
+async def test_generic_names_produce_quote_rows_and_missing_key_status():
+    fetcher = AsyncMock()
+    fetcher.fetch_by_category.return_value = [{'title': 'Microsoft and Apple shares climb'}]
+    feed = await LiveFeedService(fetcher).get_feed('business')
+    article = feed['articles'][0]
+    assert article['tickers'] == ['MSFT', 'AAPL']
+    assert [q['symbol'] for q in article['quotes']] == ['MSFT', 'AAPL']
+    assert all(q['price'] is None and 'need setup' in q['error'] for q in article['quotes'])
+    assert feed['quote_status']['state'] == 'setup_required'
+    assert 'provider' in feed['quote_status']['message']
+
+
+@pytest.mark.asyncio
+async def test_finnhub_names_without_related_symbols_are_resolved():
+    def handle(request):
+        if request.url.path.endswith('/news'):
+            return httpx.Response(200, json=[{'headline': 'Nvidia earnings rise', 'related': ''}])
+        return httpx.Response(200, json={'c': 10, 't': 1700000001})
+    service = LiveFeedService(AsyncMock(), 'test-key', transport=httpx.MockTransport(handle))
+    feed = await service.get_feed('business')
+    assert feed['articles'][0]['tickers'] == ['NVDA']
+    assert feed['articles'][0]['quotes'][0]['price'] == 10
+    assert feed['quote_status']['state'] == 'ready'
+
+
+@pytest.mark.asyncio
+async def test_bad_quote_access_sets_unavailable_and_no_secret_in_status():
+    fetcher = AsyncMock()
+    fetcher.fetch_by_category.return_value = [{'title': 'Microsoft results'}]
+    service = LiveFeedService(fetcher, 'private-secret', transport=httpx.MockTransport(lambda r: httpx.Response(403)))
+    feed = await service.get_feed('technology')
+    assert feed['quote_status']['state'] == 'unavailable'
+    assert feed['articles'][0]['quotes'][0]['price'] is None
+    assert 'private-secret' not in str(feed)
+
+
+@pytest.mark.asyncio
+async def test_status_without_symbols_distinguishes_setup_and_enabled():
+    fetcher = AsyncMock()
+    fetcher.fetch_by_category.return_value = [{'title': 'No company headline'}]
+    missing = await LiveFeedService(fetcher).get_feed('technology')
+    ready = await LiveFeedService(fetcher, 'configured').get_feed('technology')
+    assert missing['quote_status']['state'] == 'setup_required'
+    assert ready['quote_status']['state'] == 'ready'
+    assert 'No supported stock mentions' in ready['quote_status']['message']

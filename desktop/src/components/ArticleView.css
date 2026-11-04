@@ -11,6 +11,7 @@
 .news-popup .stock-quote { padding: 5px 6px; }
 .news-popup .quote-line { font-size: 9px; }
 .news-popup .quote-time { font-size: 8px; }
+.popup-countdown { display: flex; justify-content: space-between; margin-top: auto; flex-shrink: 0; font-size: 9px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
 .article-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 15px; border-bottom: 1px solid var(--border); -webkit-app-region: drag; }
 .article-header button { color: var(--text-secondary); font-size: 12px; padding: 4px 0; -webkit-app-region: no-drag; }
 .article-header button:last-child { font-size: 20px; padding: 0 4px; }

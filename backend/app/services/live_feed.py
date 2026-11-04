@@ -1,6 +1,6 @@
 """Live headlines and optional Finnhub quotes, with bounded local caching.
 
-No language model calls or symbol guesses are used in this delivery path.
+No language model calls are used; company matching uses a reviewed issuer list.
 Finnhub references: https://finnhub.io/docs/api/market-news and /quote.
 """
 
@@ -8,12 +8,12 @@ import asyncio
 from copy import deepcopy
 from datetime import datetime, timezone
 import math
-import re
 import time
 
 import httpx
 
 from app.models.schemas import CategoryEnum
+from app.services.ticker_resolver import resolve_tickers, symbols_from_provider
 
 
 class FeedUnavailable(Exception):
@@ -28,15 +28,6 @@ def iso_timestamp(value):
         except (OverflowError, OSError, ValueError):
             pass
     return None
-
-
-def symbols_from_provider(value):
-    """Only explicit symbol metadata is accepted; never extract company names."""
-    values = value.split(",") if isinstance(value, str) else value if isinstance(value, list) else []
-    return list(dict.fromkeys(
-        symbol.strip() for symbol in values
-        if isinstance(symbol, str) and re.fullmatch(r"[A-Z][A-Z0-9.:-]{0,19}", symbol.strip())
-    ))[:10]
 
 
 class LiveFeedService:
@@ -99,7 +90,7 @@ class LiveFeedService:
     async def _quote(self, symbol):
         async with self._quote_slots:
             if not self.api_key:
-                return self._missing_quote(symbol, "Configure FINNHUB_API_KEY for stock quotes.")
+                return self._missing_quote(symbol, "Stock prices need setup. Connect a market-data provider in backend settings.")
             try:
                 data = await self._get_json("quote", {"symbol": symbol})
                 price = data.get("c") if isinstance(data, dict) else None
@@ -110,6 +101,17 @@ class LiveFeedService:
                         "asOf": iso_timestamp(data.get("t")), "source": "Finnhub"}
             except FeedUnavailable as error:
                 return self._missing_quote(symbol, str(error))
+
+    def _quote_status(self, articles):
+        if not self.api_key:
+            return {"state": "setup_required", "message": "Stock prices need setup. Connect a market-data provider in backend settings."}
+        quotes = [quote for article in articles for quote in article.get("quotes", [])]
+        available = [quote for quote in quotes if quote.get("price") is not None]
+        if quotes and not available:
+            return {"state": "unavailable", "message": "The stock-price provider is not returning prices. Check provider access or try again later."}
+        if available and len(available) < len(quotes):
+            return {"state": "ready", "message": "Stock prices are connected. Some companies have no available quote."}
+        return {"state": "ready", "message": "Stock prices are connected." if quotes else "A stock-price provider is configured. No supported stock mentions were found in these headlines."}
 
     async def _enrich_quotes(self, articles):
         symbols = list(dict.fromkeys(s for a in articles for s in a["tickers"]))[:self.MAX_SYMBOLS]
@@ -164,13 +166,18 @@ class LiveFeedService:
                         "category": category,
                         "tickers": symbols_from_provider(a.get("tickers")),
                     } for a in raw if isinstance(a, dict)][:10]
+                for article in articles:
+                    article["tickers"] = resolve_tickers(
+                        article["title"], article["description"], article.get("tickers"),
+                    )
                 try:
                     await asyncio.wait_for(self._enrich_quotes(articles), timeout=12)
                 except asyncio.TimeoutError:
                     for article in articles:
                         article["quotes"] = [self._missing_quote(s, "Quote provider timed out.")
                                              for s in article["tickers"]]
-                result = {"articles": articles, "refresh_interval_seconds": self.TTL}
+                result = {"articles": articles, "refresh_interval_seconds": self.TTL,
+                          "quote_status": self._quote_status(articles)}
                 self._feeds[category] = (self.clock() + self.TTL, result)
                 return deepcopy(result)
             except FeedUnavailable as error:

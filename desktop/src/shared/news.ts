@@ -36,6 +36,7 @@ export interface NewsState {
 export interface WindowView {
   kind: 'panel' | 'popup' | 'article';
   article: NewsItem | null;
+  expiresAt?: number;
 }
 
 export interface ElectronAPI {

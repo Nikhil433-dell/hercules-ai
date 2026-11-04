@@ -8,7 +8,15 @@ const ts = require('typescript');
 
 async function launch(deferReady = false) {
   const windows = [], handlers = new Map(), events = new EventEmitter();
-  let tray, monitor, outsideClick, watching = false;
+  let tray, monitor, now = 100000, nextTimer = 0;
+  const timers = new Map();
+  const schedule = (callback, delay) => { const id = ++nextTimer; timers.set(id, { callback, at: now + delay }); return id; };
+  const advance = (milliseconds) => {
+    now += milliseconds;
+    for (const [id, timer] of timers) {
+      if (timer.at <= now) { timers.delete(id); timer.callback(); }
+    }
+  };
   const state = { articles: [], category: 'business', loading: false, error: null, lastChecked: null, refreshIntervalSeconds: 60 };
   class Window extends EventEmitter {
     static getAllWindows() { return windows; }
@@ -61,15 +69,15 @@ async function launch(deferReady = false) {
       if (name === 'electron') return electron;
       if (name === 'electron-squirrel-startup') return false;
       if (name === './services/newsMonitor') return { NewsMonitor: Monitor };
-      if (name === './services/outsideClick') return { startOutsideClickMonitor: (callback) => { outsideClick = callback; watching = true; return () => { watching = false; }; } };
       return require(name);
     },
     exports: {}, process: { platform: 'darwin', env: {} }, console,
     MAIN_WINDOW_WEBPACK_ENTRY: 'http://localhost:3000/main_window', MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY: '/tmp/preload.js',
-    URL, setTimeout, clearTimeout, AbortController,
+    URL, Date: class extends Date { static now() { return now; } },
+    setTimeout: schedule, clearTimeout: (id) => timers.delete(id), AbortController,
   }, { filename });
   await new Promise((resolve) => setImmediate(resolve));
-  return { windows, events, handlers, state, get tray() { return tray; }, get monitor() { return monitor; }, outside: (point) => outsideClick(point), watching: () => watching };
+  return { windows, events, handlers, state, advance, get tray() { return tray; }, get monitor() { return monitor; } };
 }
 const story = { id: 'actual-story', title: 'Actual company news', url: 'https://example.com/story', tickers: [], quotes: [] };
 
@@ -92,10 +100,12 @@ test('startup hidden; H opens panel; compact popup stays inactive; detail is sep
   assert.equal(popup.focusCount, 0);
   assert.equal(panel.isVisible(), false);
   assert.equal(detail.isVisible(), false);
-  assert.equal(runtime.watching(), true);
-  runtime.outside({ x: 20, y: 20 });
+  popup.emit('blur');
+  assert.equal(popup.isVisible(), true);
+  runtime.advance(9999);
+  assert.equal(popup.isVisible(), true);
+  runtime.advance(1);
   assert.equal(popup.isVisible(), false);
-  assert.equal(runtime.watching(), false);
   runtime.monitor.dependencies.onArticle(story);
   runtime.events.emit('open-article', { sender: popup.webContents }, story.id);
   assert.equal(popup.isVisible(), false);
@@ -105,6 +115,8 @@ test('startup hidden; H opens panel; compact popup stays inactive; detail is sep
   const view = runtime.handlers.get('get-window-view')({ sender: detail.webContents });
   assert.equal(view.kind, 'article');
   assert.equal(view.article.id, story.id);
+  runtime.advance(10000);
+  assert.equal(detail.isVisible(), true);
   detail.emit('blur');
   assert.equal(detail.isVisible(), false);
   runtime.events.emit('open-article', { sender: panel.webContents }, story.id);
@@ -112,6 +124,41 @@ test('startup hidden; H opens panel; compact popup stays inactive; detail is sep
   detail.webContents.emit('before-input-event', { preventDefault() { prevented = true; } }, { key: 'Escape' });
   assert.equal(prevented, true);
   assert.equal(detail.isVisible(), false);
+});
+
+test('a newer popup gets a full ten seconds and early dismissal cancels its timer', async () => {
+  const runtime = await launch();
+  const [, popup] = runtime.windows;
+  runtime.monitor.dependencies.onArticle(story);
+  const first = runtime.handlers.get('get-window-view')({ sender: popup.webContents }).expiresAt;
+  runtime.advance(8000);
+  runtime.monitor.dependencies.onArticle({ ...story, id: 'next' });
+  const next = runtime.handlers.get('get-window-view')({ sender: popup.webContents }).expiresAt;
+  assert.equal(next - first, 8000);
+  runtime.advance(2000);
+  assert.equal(popup.isVisible(), true);
+  runtime.advance(7999);
+  assert.equal(popup.isVisible(), true);
+  runtime.advance(1);
+  assert.equal(popup.isVisible(), false);
+  runtime.monitor.dependencies.onArticle(story);
+  runtime.events.emit('minimize-panel', { sender: popup.webContents });
+  runtime.advance(10000);
+  assert.equal(popup.isVisible(), false);
+});
+
+test('popup timeout starts when it becomes visible, after renderer readiness', async () => {
+  const runtime = await launch(true);
+  const [, popup] = runtime.windows;
+  runtime.monitor.dependencies.onArticle(story);
+  runtime.advance(12000);
+  assert.equal(popup.isVisible(), false);
+  popup.emit('ready-to-show');
+  assert.equal(popup.isVisible(), true);
+  runtime.advance(9999);
+  assert.equal(popup.isVisible(), true);
+  runtime.advance(1);
+  assert.equal(popup.isVisible(), false);
 });
 
 test('main panel cannot move, supports native edge resizing, and keeps its size when reopened', async () => {

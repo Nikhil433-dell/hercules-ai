@@ -2,7 +2,6 @@ import { app, BrowserWindow, ipcMain, Menu, nativeImage, net, powerMonitor, scre
 import * as fs from 'fs';
 import * as path from 'path';
 import { NewsMonitor, MonitorStorage } from './services/newsMonitor';
-import { startOutsideClickMonitor } from './services/outsideClick';
 import type { NewsItem, WindowView } from './shared/news';
 
 declare const MAIN_WINDOW_WEBPACK_ENTRY: string;
@@ -17,7 +16,7 @@ let tray: Tray | null = null;
 let monitor: NewsMonitor;
 let quitting = false;
 let lastPanelBlur = 0;
-let stopOutsideClick: (() => void) | null = null;
+let popupTimeout: ReturnType<typeof setTimeout> | undefined;
 const views = new Map<number, WindowView>();
 const loadedWindows = new Set<number>();
 const showIntents = new Map<number, number>();
@@ -27,6 +26,12 @@ const POPUP_WIDTH = PANEL_WIDTH - 10;
 const POPUP_HEIGHT = Math.round(PANEL_HEIGHT / 4) - 10;
 const ARTICLE_WIDTH = 350;
 const ARTICLE_HEIGHT = 530;
+const POPUP_DURATION_MS = 10000;
+
+function clearPopupTimeout() {
+  if (popupTimeout !== undefined) clearTimeout(popupTimeout);
+  popupTimeout = undefined;
+}
 
 function bounds(width: number, height: number, anchorToTray = false) {
   const anchor = tray?.getBounds();
@@ -53,10 +58,18 @@ function showWindow(window: BrowserWindow, focus: boolean) {
   showIntents.set(window.id, intent);
   const show = () => {
     if (showIntents.get(window.id) !== intent || window.isDestroyed()) return;
-    const view = views.get(window.webContents.id);
+    let view = views.get(window.webContents.id);
+    if (view?.kind === 'popup') {
+      clearPopupTimeout();
+      view = { ...view, expiresAt: Date.now() + POPUP_DURATION_MS };
+      views.set(window.webContents.id, view);
+    }
     if (view) window.webContents.send('window-view', view);
     if (focus) { window.show(); window.focus(); }
     else window.showInactive();
+    if (view?.kind === 'popup') {
+      popupTimeout = setTimeout(() => { popupTimeout = undefined; window.hide(); }, POPUP_DURATION_MS);
+    }
   };
   if (loadedWindows.has(window.id)) show();
   else window.once('ready-to-show', show);
@@ -112,6 +125,7 @@ function createWindow(kind: WindowView['kind'], width: number, height: number) {
   views.set(window.webContents.id, { kind, article: null });
   window.once('ready-to-show', () => loadedWindows.add(window.id));
   window.on('blur', () => {
+    if (kind === 'popup') return;
     if (kind === 'panel') lastPanelBlur = Date.now();
     window.hide();
   });
@@ -200,16 +214,7 @@ app.whenReady().then(() => {
   mainWindow = createWindow('panel', PANEL_WIDTH, PANEL_HEIGHT);
   popupWindow = createWindow('popup', POPUP_WIDTH, POPUP_HEIGHT);
   articleWindow = createWindow('article', ARTICLE_WIDTH, ARTICLE_HEIGHT);
-  popupWindow.on('show', () => {
-    stopOutsideClick?.();
-    stopOutsideClick = startOutsideClickMonitor((point) => {
-      const rects = [popupWindow.getBounds()];
-      if (tray) rects.push(tray.getBounds());
-      const inside = rects.some((rect) => point.x >= rect.x && point.x < rect.x + rect.width && point.y >= rect.y && point.y < rect.y + rect.height);
-      if (!inside) popupWindow.hide();
-    });
-  });
-  popupWindow.on('hide', () => { stopOutsideClick?.(); stopOutsideClick = null; });
+  popupWindow.on('hide', clearPopupTimeout);
   ipcMain.handle('get-news-state', () => monitor.getState());
   ipcMain.handle('get-window-view', (event) => views.get(event.sender.id) ?? { kind: 'panel', article: null });
   ipcMain.on('set-category', (_event, category: unknown) => { if (typeof category === 'string') monitor.setCategory(category); });
@@ -224,5 +229,5 @@ app.whenReady().then(() => {
   monitor.start();
 });
 
-app.on('before-quit', () => { quitting = true; monitor?.stop(); stopOutsideClick?.(); });
+app.on('before-quit', () => { quitting = true; monitor?.stop(); clearPopupTimeout(); });
 // App activation alone must not open a window; only the H icon does that.

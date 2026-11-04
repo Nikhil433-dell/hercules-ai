@@ -5,12 +5,15 @@
    refresh. Change category; verify there is no historical-alert burst.
 3. Click outside the panel or press Escape. Verify it hides and monitoring continues.
 4. On a genuinely new story, verify the popup is 250px wide and 160px high. It must
-   not open the full panel or steal focus. Click elsewhere to dismiss it.
+   not open the full panel or steal focus. Click elsewhere and confirm it stays
+   visible, then automatically disappears after its 10-second countdown.
 5. Click a new popup or a feed headline. Verify a separate article window shows
    the headline, source, publication time, description, and original article link.
-6. Confirm source-provided symbols have quote prices, currency when available,
+   Click outside the larger article window and confirm it hides immediately.
+6. Confirm supplied or recognized company symbols have quote prices, currency when available,
    and quote time. If the quote provider is unavailable, confirm the UI says so
-   and news still works. No fabricated ticker or zero-price placeholders.
+   and news still works. With no quote-provider key, confirm the setup notice
+   is visible. No fabricated ticker or zero-price placeholders.
 7. Open the stock link and original article link. Confirm the correct destinations.
 8. Stop the backend and refresh. Verify the connection error is visible, prior
    stories remain, and no sample stories appear. Restart the backend and retry.
