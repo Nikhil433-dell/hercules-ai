@@ -9,6 +9,7 @@ from copy import deepcopy
 from datetime import datetime, timezone
 import math
 import time
+from urllib.parse import urlsplit
 
 import httpx
 
@@ -73,6 +74,15 @@ class LiveFeedService:
         data = await self._get_json("news", {"category": "general"})
         if not isinstance(data, list):
             raise FeedUnavailable("Finnhub returned an invalid news response.")
+        def usable(article):
+            if not isinstance(article, dict) or not isinstance(article.get("headline"), str) or not article["headline"].strip():
+                return False
+            try:
+                url = urlsplit(article.get("url", ""))
+                return url.scheme in ("http", "https") and bool(url.netloc)
+            except (TypeError, ValueError, AttributeError):
+                return False
+
         return [{
             "title": article.get("headline") or "",
             "description": article.get("summary") or "",
@@ -81,7 +91,7 @@ class LiveFeedService:
             "published_at": iso_timestamp(article.get("datetime")),
             "category": "business",
             "tickers": symbols_from_provider(article.get("related")),
-        } for article in data if isinstance(article, dict)][:10]
+        } for article in data if usable(article)][:10]
 
     def _missing_quote(self, symbol, message):
         return {"symbol": symbol, "price": None, "currency": None,
@@ -149,7 +159,7 @@ class LiveFeedService:
                 articles = None
                 if category == "business" and self.api_key:
                     try:
-                        articles = await self._market_news()
+                        articles = await self._market_news() or None
                     except FeedUnavailable:
                         # An unavailable optional financial provider doesn't block headlines.
                         articles = None

@@ -46,7 +46,7 @@ async function launch(deferReady = false) {
   class Monitor {
     constructor(dependencies) { this.dependencies = dependencies; monitor = this; }
     getState() { return state; }
-    start() {} stop() {} refresh() { return Promise.resolve(); }
+    start() {} stop() {} refresh() { this.refreshCount = (this.refreshCount || 0) + 1; return Promise.resolve(); }
     setCategory(category) { state.category = category; }
   }
   const app = new EventEmitter();
@@ -88,6 +88,7 @@ test('startup hidden; H opens panel; compact popup stays inactive; detail is sep
   assert.ok(runtime.windows.every((window) => !window.isVisible()));
   runtime.tray.emit('click');
   assert.equal(panel.isVisible(), true);
+  assert.equal(runtime.monitor.refreshCount, 1);
   assert.equal(panel.getBounds().width, 260);
   assert.equal(panel.getBounds().height, 680);
   runtime.events.emit('minimize-panel', { sender: panel.webContents });

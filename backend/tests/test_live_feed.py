@@ -14,7 +14,7 @@ async def test_provider_metadata_quote_and_concurrent_cache():
         calls.append(request.url.path)
         if request.url.path.endswith('/news'):
             return httpx.Response(200, json=[{
-                'headline': 'Earnings', 'summary': 'Provider text', 'source': 'Publisher',
+                'headline': 'Earnings', 'summary': 'Provider text', 'source': 'Publisher', 'url': 'https://example.com/earnings',
                 'datetime': 1700000000, 'related': 'AAPL,MSFT,Apple Inc.,AAPL',
             }])
         return httpx.Response(200, json={'c': 123.45, 't': 1700000001})
@@ -42,7 +42,7 @@ async def test_provider_metadata_quote_and_concurrent_cache():
 async def test_quote_failure_zero_and_secrets():
     async def handle(request):
         if request.url.path.endswith('/news'):
-            return httpx.Response(200, json=[{'headline': 'News', 'related': 'AAPL,MSFT'}])
+            return httpx.Response(200, json=[{'headline': 'News', 'related': 'AAPL,MSFT', 'url': 'https://example.com/news'}])
         if request.url.params['symbol'] == 'AAPL':
             return httpx.Response(200, json={'c': 0, 't': 0})
         return httpx.Response(429, json={'error': 'secret-key must not escape'})
@@ -145,7 +145,7 @@ async def test_generic_names_produce_quote_rows_and_missing_key_status():
 async def test_finnhub_names_without_related_symbols_are_resolved():
     def handle(request):
         if request.url.path.endswith('/news'):
-            return httpx.Response(200, json=[{'headline': 'Nvidia earnings rise', 'related': ''}])
+            return httpx.Response(200, json=[{'headline': 'Nvidia earnings rise', 'related': '', 'url': 'https://example.com/nvidia'}])
         return httpx.Response(200, json={'c': 10, 't': 1700000001})
     service = LiveFeedService(AsyncMock(), 'test-key', transport=httpx.MockTransport(handle))
     feed = await service.get_feed('business')
@@ -174,3 +174,37 @@ async def test_status_without_symbols_distinguishes_setup_and_enabled():
     assert missing['quote_status']['state'] == 'setup_required'
     assert ready['quote_status']['state'] == 'ready'
     assert 'No supported stock mentions' in ready['quote_status']['message']
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('provider_news', [[], [None, {'headline': 'Removed story', 'url': ''}], [
+    {'headline': 'Unsafe link', 'url': 'javascript:alert(1)'},
+    {'headline': '   ', 'url': 'https://example.com/empty'},
+]])
+async def test_empty_or_unusable_finnhub_news_falls_back_and_still_fetches_quotes(provider_news):
+    def handle(request):
+        if request.url.path.endswith('/news'):
+            return httpx.Response(200, json=provider_news)
+        return httpx.Response(200, json={'c': 123.45, 't': 1700000001})
+    fetcher = AsyncMock()
+    fetcher.fetch_by_category.return_value = [{
+        'title': 'Microsoft earnings', 'url': 'https://example.com/microsoft',
+    }]
+    service = LiveFeedService(fetcher, 'test-key', transport=httpx.MockTransport(handle))
+    feed = await service.get_feed('business')
+    fetcher.fetch_by_category.assert_awaited_once_with('business', max_results=10)
+    assert feed['articles'][0]['tickers'] == ['MSFT']
+    assert feed['articles'][0]['quotes'][0]['price'] == 123.45
+
+
+@pytest.mark.asyncio
+async def test_usable_finnhub_stories_survive_bad_records_without_fallback():
+    fetcher = AsyncMock()
+    service = LiveFeedService(fetcher, 'key', transport=httpx.MockTransport(lambda request: httpx.Response(200, json=[
+        None, {'headline': 'Broken', 'url': ''},
+        {'headline': 'Market news', 'url': 'https://example.com/valid'},
+    ])))
+    feed = await service.get_feed('business')
+    assert len(feed['articles']) == 1
+    assert feed['articles'][0]['title'] == 'Market news'
+    fetcher.fetch_by_category.assert_not_awaited()

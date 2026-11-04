@@ -81,6 +81,7 @@ function expandPanel() {
   const { width, height } = mainWindow.getBounds();
   mainWindow.setBounds(bounds(width, height, true));
   showWindow(mainWindow, true);
+  void monitor.refresh();
 }
 
 function openExternal(url: unknown) {
