@@ -1,5 +1,5 @@
-.panel-root { position: fixed; inset: 0; display: flex; flex-direction: column; color: var(--text-primary); background: var(--bg-panel); backdrop-filter: blur(28px) saturate(110%); -webkit-backdrop-filter: blur(28px) saturate(110%); border: 1px solid var(--border-strong); box-shadow: var(--shadow-panel); border-radius: 12px; overflow: hidden; }
-.panel-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px; border-bottom: 1px solid var(--border); flex-shrink: 0; -webkit-app-region: drag; }
+.panel-root { position: fixed; inset: 0; display: flex; flex-direction: column; container-type: inline-size; color: var(--text-primary); background: var(--bg-panel); backdrop-filter: blur(28px) saturate(110%); -webkit-backdrop-filter: blur(28px) saturate(110%); border: 1px solid var(--border-strong); box-shadow: var(--shadow-panel); border-radius: 12px; overflow: hidden; }
+.panel-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px; border-bottom: 1px solid var(--border); flex-shrink: 0; -webkit-app-region: no-drag; }
 .panel-brand { display: flex; align-items: center; gap: 1px; min-width: 0; }
 .logo-badge { width: 20px; height: 26px; flex-shrink: 0; display: grid; place-items: center; border-radius: 5px; background: var(--bg-hover); color: var(--text-primary); font-size: 18px; line-height: 1; font-weight: 800; }
 .panel-brand h1 { font-size: 18px; line-height: 1; font-weight: 750; letter-spacing: -.4px; }
@@ -27,3 +27,14 @@ button:disabled { opacity: .45; cursor: default; }
 .live-dot--error { background: #bc9b64; }
 .refresh-cadence { margin-left: auto; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+.feed-controls, .live-status, .feed-heading { flex-shrink: 0; }
+@container (min-width: 480px) {
+  .news-feed { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; align-items: start; }
+  .news-feed > .feed-error, .news-feed > .empty-state { grid-column: 1 / -1; }
+  .panel-brand p { display: block; }
+}
+
+.quote-status-notice { display: flex; flex-direction: column; gap: 4px; flex-shrink: 0; margin: 0 12px 12px; padding: 9px 10px; border: 1px solid var(--border); border-radius: 7px; background: var(--bg-surface, var(--bg-card)); font-size: 10px; line-height: 1.5; }
+.quote-status-notice strong { font-weight: 600; color: var(--text-primary); }
+.quote-status-notice span { color: var(--text-muted); }

@@ -73,7 +73,7 @@ async function launch(deferReady = false) {
 }
 const story = { id: 'actual-story', title: 'Actual company news', url: 'https://example.com/story', tickers: [], quotes: [] };
 
-test('startup hidden; H opens panel; new story opens inactive quarter-height popup; detail is separate and dismissible', async () => {
+test('startup hidden; H opens panel; compact popup stays inactive; detail is separate and dismissible', async () => {
   const runtime = await launch();
   const [panel, popup, detail] = runtime.windows;
   assert.equal(runtime.windows.length, 3);
@@ -87,8 +87,8 @@ test('startup hidden; H opens panel; new story opens inactive quarter-height pop
   runtime.state.articles = [story];
   runtime.monitor.dependencies.onArticle(story);
   assert.equal(popup.isVisible(), true);
-  assert.equal(popup.getBounds().height, 170);
-  assert.equal(popup.getBounds().width, 260);
+  assert.equal(popup.getBounds().height, 160);
+  assert.equal(popup.getBounds().width, 250);
   assert.equal(popup.focusCount, 0);
   assert.equal(panel.isVisible(), false);
   assert.equal(detail.isVisible(), false);
@@ -100,8 +100,8 @@ test('startup hidden; H opens panel; new story opens inactive quarter-height pop
   runtime.events.emit('open-article', { sender: popup.webContents }, story.id);
   assert.equal(popup.isVisible(), false);
   assert.equal(detail.isVisible(), true);
-  assert.equal(detail.getBounds().width, 360);
-  assert.equal(detail.getBounds().height, 540);
+  assert.equal(detail.getBounds().width, 350);
+  assert.equal(detail.getBounds().height, 530);
   const view = runtime.handlers.get('get-window-view')({ sender: detail.webContents });
   assert.equal(view.kind, 'article');
   assert.equal(view.article.id, story.id);
@@ -112,6 +112,27 @@ test('startup hidden; H opens panel; new story opens inactive quarter-height pop
   detail.webContents.emit('before-input-event', { preventDefault() { prevented = true; } }, { key: 'Escape' });
   assert.equal(prevented, true);
   assert.equal(detail.isVisible(), false);
+});
+
+test('main panel cannot move, supports native edge resizing, and keeps its size when reopened', async () => {
+  const runtime = await launch();
+  const [panel, popup, detail] = runtime.windows;
+  assert.equal(panel.options.movable, false);
+  assert.equal(panel.options.resizable, true);
+  // Electron transparent windows do not support reliable native resizing.
+  assert.equal(panel.options.transparent, false);
+  assert.equal(panel.options.minWidth, 260);
+  assert.equal(panel.options.minHeight, 320);
+  assert.equal(popup.options.resizable, false);
+  assert.equal(detail.options.resizable, false);
+  runtime.tray.emit('click');
+  panel.setBounds({ ...panel.getBounds(), width: 560, height: 820 });
+  runtime.events.emit('minimize-panel', { sender: panel.webContents });
+  runtime.tray.emit('click');
+  assert.equal(panel.getBounds().width, 560);
+  assert.equal(panel.getBounds().height, 820);
+  assert.ok(panel.getBounds().x >= 0);
+  assert.ok(panel.getBounds().x + 560 <= 1920);
 });
 
 test('opening panel before popup renderer is ready cancels pending popup', async () => {

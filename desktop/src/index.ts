@@ -23,6 +23,10 @@ const loadedWindows = new Set<number>();
 const showIntents = new Map<number, number>();
 const PANEL_WIDTH = 260;
 const PANEL_HEIGHT = 680;
+const POPUP_WIDTH = PANEL_WIDTH - 10;
+const POPUP_HEIGHT = Math.round(PANEL_HEIGHT / 4) - 10;
+const ARTICLE_WIDTH = 350;
+const ARTICLE_HEIGHT = 530;
 
 function bounds(width: number, height: number, anchorToTray = false) {
   const anchor = tray?.getBounds();
@@ -61,7 +65,8 @@ function showWindow(window: BrowserWindow, focus: boolean) {
 function expandPanel() {
   if (!mainWindow || mainWindow.isDestroyed()) return;
   hideAll();
-  mainWindow.setBounds(bounds(PANEL_WIDTH, PANEL_HEIGHT, true));
+  const { width, height } = mainWindow.getBounds();
+  mainWindow.setBounds(bounds(width, height, true));
   showWindow(mainWindow, true);
 }
 
@@ -83,21 +88,23 @@ function showArticle(id: unknown) {
   if (!article) return;
   hideAll();
   views.set(articleWindow.webContents.id, { kind: 'article', article });
-  articleWindow.setBounds(bounds(360, 540));
+  articleWindow.setBounds(bounds(ARTICLE_WIDTH, ARTICLE_HEIGHT));
   showWindow(articleWindow, true);
 }
 
 function notify(article: NewsItem) {
   tray?.setToolTip(`Hercules AI — ${article.title}`);
   views.set(popupWindow.webContents.id, { kind: 'popup', article });
-  popupWindow.setBounds(bounds(PANEL_WIDTH, Math.round(PANEL_HEIGHT / 4)));
+  popupWindow.setBounds(bounds(POPUP_WIDTH, POPUP_HEIGHT));
   showWindow(popupWindow, false);
 }
 
 function createWindow(kind: WindowView['kind'], width: number, height: number) {
   const window = new BrowserWindow({
-    ...bounds(width, height, kind === 'panel'), frame: false, transparent: true, alwaysOnTop: true,
-    resizable: false, skipTaskbar: true, hasShadow: true, show: false,
+    ...bounds(width, height, kind === 'panel'), frame: false, transparent: kind !== 'panel', alwaysOnTop: true,
+    resizable: kind === 'panel', movable: kind !== 'panel', maximizable: false, fullscreenable: false,
+    ...(kind === 'panel' ? { minWidth: PANEL_WIDTH, minHeight: 320 } : {}),
+    skipTaskbar: true, hasShadow: true, show: false,
     backgroundColor: '#00000000',
     ...(process.platform === 'darwin' ? { vibrancy: 'menu' as const, visualEffectState: 'active' as const } : {}),
     webPreferences: { preload: MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY, contextIsolation: true, nodeIntegration: false, backgroundThrottling: false },
@@ -191,8 +198,8 @@ app.whenReady().then(() => {
   });
   createTray();
   mainWindow = createWindow('panel', PANEL_WIDTH, PANEL_HEIGHT);
-  popupWindow = createWindow('popup', PANEL_WIDTH, Math.round(PANEL_HEIGHT / 4));
-  articleWindow = createWindow('article', 360, 540);
+  popupWindow = createWindow('popup', POPUP_WIDTH, POPUP_HEIGHT);
+  articleWindow = createWindow('article', ARTICLE_WIDTH, ARTICLE_HEIGHT);
   popupWindow.on('show', () => {
     stopOutsideClick?.();
     stopOutsideClick = startOutsideClickMonitor((point) => {

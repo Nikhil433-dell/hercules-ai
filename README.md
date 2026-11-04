@@ -1,8 +1,9 @@
 # Hercules — Market News Desktop App
 
 Hercules starts quietly in the macOS menu bar. Click **H** to open current news
-with category filters. New stories appear in a compact 170px popup (one quarter
-of the 680px feed panel). Click a popup or headline for a separate article view
+with category filters. The main panel stays anchored and can be resized from
+its edges; reopening preserves its size for the session. New stories appear in
+a compact 250 × 160px popup. Click a popup or headline for a separate article view
 with stock quotes and a link to the original source. Clicking elsewhere hides
 Hercules windows. Background checks continue while the windows are hidden.
 

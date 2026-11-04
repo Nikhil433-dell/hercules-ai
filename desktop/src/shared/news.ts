@@ -27,6 +27,10 @@ export interface NewsState {
   error: string | null;
   lastChecked: string | null;
   refreshIntervalSeconds: number;
+  quoteStatus?: {
+    state: 'ready' | 'setup_required' | 'unavailable';
+    message: string;
+  };
 }
 
 export interface WindowView {

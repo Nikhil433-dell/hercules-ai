@@ -88,6 +88,10 @@ export default function SidePanel({ onMinimize }: SidePanelProps) {
         <button className="text-button" disabled={!api || feed.loading} onClick={() => perform(() => api?.refreshNews())}>{feed.loading ? 'Checking…' : 'Refresh ↻'}</button>
       </section>
       <div className="live-status"><span className={`live-dot ${feed.error ? 'live-dot--error' : ''}`} /><span>{feed.error ? 'Connection needs attention' : feed.loading ? 'Checking live headlines' : 'Live headlines'}</span><span className="refresh-cadence">Every {Math.max(1, Math.round(feed.refreshIntervalSeconds / 60))} min</span></div>
+      {feed.quoteStatus && feed.quoteStatus.state !== 'ready' && <div className="quote-status-notice" role="status">
+        <strong>{feed.quoteStatus.state === 'setup_required' ? 'Stock prices need a quote-provider connection' : 'Stock prices are temporarily unavailable'}</strong>
+        <span>{feed.quoteStatus.state === 'setup_required' ? 'Connect a quote provider to see prices alongside identified stocks.' : 'Available stock links still open the latest quote in your browser.'}</span>
+      </div>}
       <div className="feed-heading"><h2>Latest stories</h2><span>{feed.articles.length} stories</span></div>
       <div className="news-feed" aria-label="News stories" aria-busy={feed.loading}>
         {(feed.error || actionError) && <div className="feed-error" role="alert">{actionError || feed.error}</div>}

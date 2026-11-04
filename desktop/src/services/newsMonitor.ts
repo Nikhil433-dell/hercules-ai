@@ -30,6 +30,14 @@ function parseQuote(value: unknown): StockQuote | null {
   };
 }
 
+function parseQuoteStatus(payload: unknown): NewsState['quoteStatus'] {
+  const status = (payload as { quote_status?: unknown })?.quote_status;
+  if (!status || typeof status !== 'object') return undefined;
+  const value = status as Record<string, unknown>;
+  if (!['ready', 'setup_required', 'unavailable'].includes(value.state as string) || typeof value.message !== 'string') return undefined;
+  return { state: value.state as 'ready' | 'setup_required' | 'unavailable', message: value.message };
+}
+
 export function normalizeHeadlines(payload: unknown): NewsItem[] {
   if (!payload || typeof payload !== 'object' || !Array.isArray((payload as { articles?: unknown }).articles)) {
     throw new Error('The backend returned an invalid news response.');
@@ -103,7 +111,7 @@ export class NewsMonitor {
     if (!NEWS_CATEGORIES.includes(category) || category === this.state.category) return;
     this.generation += 1;
     this.initialized = false;
-    this.state = { ...this.state, category, articles: [], loading: false, error: null, lastChecked: null };
+    this.state = { ...this.state, category, articles: [], loading: false, error: null, lastChecked: null, quoteStatus: undefined };
     this.persist();
     this.emit();
     void this.refresh();
@@ -126,7 +134,7 @@ export class NewsMonitor {
       if (articles.length > 0) this.initialized = true;
       const saved = this.persist();
       this.state = {
-        ...this.state, articles, loading: false, lastChecked: new Date().toISOString(),
+        ...this.state, articles, loading: false, lastChecked: new Date().toISOString(), quoteStatus: parseQuoteStatus(payload),
         error: !saved ? 'Could not save alert history. Alerts are paused until storage is writable.' : articles.length === 0 ? 'No stories returned for this category.' : null,
       };
       this.emit();

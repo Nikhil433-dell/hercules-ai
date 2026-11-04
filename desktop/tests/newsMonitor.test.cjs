@@ -144,3 +144,15 @@ test('malformed individual provider links do not prevent valid stories from load
   assert.equal(normalized.length, 1);
   assert.equal(normalized[0].title, 'Story valid');
 });
+
+test('price setup status reaches the desktop without hiding news, and clears once configured', async () => {
+  const h = harness();
+  h.setResponse({ articles: [headline('one')], quote_status: { state: 'setup_required', message: 'Connect a stock-price provider.' } });
+  await h.monitor.refresh();
+  assert.equal(h.monitor.getState().articles.length, 1);
+  assert.equal(h.monitor.getState().quoteStatus.state, 'setup_required');
+  assert.equal(h.monitor.getState().error, null);
+  h.setResponse({ articles: [headline('one')], quote_status: { state: 'ready', message: 'Stock prices connected.' } });
+  await h.monitor.refresh();
+  assert.equal(h.monitor.getState().quoteStatus.state, 'ready');
+});
