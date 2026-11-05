@@ -1,6 +1,7 @@
 import type { ForgeConfig } from '@electron-forge/shared-types';
 import { MakerSquirrel } from '@electron-forge/maker-squirrel';
 import { MakerZIP } from '@electron-forge/maker-zip';
+import { MakerDMG } from '@electron-forge/maker-dmg';
 import { MakerDeb } from '@electron-forge/maker-deb';
 import { MakerRpm } from '@electron-forge/maker-rpm';
 import { AutoUnpackNativesPlugin } from '@electron-forge/plugin-auto-unpack-natives';
@@ -10,15 +11,30 @@ import { FuseV1Options, FuseVersion } from '@electron/fuses';
 
 import { mainConfig } from './webpack.main.config';
 import { rendererConfig } from './webpack.renderer.config';
+import { version } from './package.json';
 
 const config: ForgeConfig = {
   packagerConfig: {
     asar: true,
+    // Re-seal development builds after packaging changes Electron's metadata.
+    // Ad-hoc signing provides integrity, not a verified Developer ID identity.
+    osxSign: {
+      identity: '-',
+      identityValidation: false,
+      preAutoEntitlements: false,
+      preEmbedProvisioningProfile: false,
+      optionsForFile: () => ({ hardenedRuntime: false, timestamp: 'none' }),
+    },
   },
   rebuildConfig: {},
   makers: [
     new MakerSquirrel({}),
     new MakerZIP({}, ['darwin']),
+    new MakerDMG((arch) => ({
+      name: `Hercules-${version}-${arch}`,
+      format: 'UDZO',
+      overwrite: true,
+    })),
     new MakerRpm({}),
     new MakerDeb({}),
   ],

@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import NewsCard from './NewsCard';
 import type { NewsState } from '../shared/news';
-import './SidePanel.css';
 
 interface SidePanelProps { onMinimize: () => void; }
 

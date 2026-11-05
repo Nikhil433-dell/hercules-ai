@@ -1,0 +1,111 @@
+name: macOS release candidates
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      create_draft:
+        description: "Create or update a draft GitHub release after both builds pass"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: macOS ${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            runner: macos-15
+          - arch: x64
+            runner: macos-15-intel
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - name: Build desktop test installers
+        env:
+          TARGET_ARCH: ${{ matrix.arch }}
+        run: npm run make -- --platform=darwin --arch="$TARGET_ARCH" --targets=@electron-forge/maker-dmg,@electron-forge/maker-zip
+      - name: Verify application integrity, disk images, and write checksums
+        run: |
+          codesign --verify --deep --strict --verbose=2 "out/Hercules-darwin-${{ matrix.arch }}/Hercules.app"
+          while IFS= read -r -d '' image; do
+            hdiutil verify "$image"
+          done < <(find out/make -name '*.dmg' -print0)
+          cd out/make
+          find . -type f \( -name '*.dmg' -o -name '*.zip' \) -exec shasum -a 256 '{}' \; > "SHA256SUMS-${{ matrix.arch }}.txt"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Hercules-macOS-${{ matrix.arch }}
+          path: |
+            desktop/out/make/**/*.dmg
+            desktop/out/make/**/*.zip
+            desktop/out/make/SHA256SUMS-*.txt
+          if-no-files-found: error
+          retention-days: 30
+
+  draft-release:
+    name: Prepare draft for review
+    needs: build
+    if: github.event_name == 'push' || inputs.create_draft
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: Hercules-macOS-*
+          path: release-assets
+          merge-multiple: true
+      - name: Create or update draft release only
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TRIGGER_TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+          TARGET_SHA: ${{ github.sha }}
+        run: |
+          VERSION="$(node -p "require('./desktop/package.json').version")"
+          RELEASE_TAG="${TRIGGER_TAG:-v$VERSION}"
+          if [ "$RELEASE_TAG" != "v$VERSION" ]; then
+            echo "Tag must match desktop/package.json version (v$VERSION)."
+            exit 1
+          fi
+          cat > release-notes.md <<'NOTES'
+          macOS desktop release candidate for review.
+
+          - Apple silicon: arm64 DMG. Intel: x64 DMG.
+          - These builds have an ad-hoc integrity signature, no verified Developer ID, and are not notarized. Gatekeeper may block opening them.
+          - The DMG contains the desktop app only. Live news requires a separately running FastAPI backend and the tester's own provider API keys. No API keys are included.
+          - See docs/RELEASING.md in this repository for setup and verification instructions.
+          - ZIP files and SHA-256 checksums accompany each architecture.
+
+          Review and test before publishing this draft.
+          NOTES
+          if gh release view "$RELEASE_TAG" --json isDraft > existing-release.json 2>/dev/null; then
+            node -e "if (!require('./existing-release.json').isDraft) { console.error('Refusing to modify a published release'); process.exit(1); }"
+          else
+            gh release create "$RELEASE_TAG" --draft --target "$TARGET_SHA" --title "Hercules $VERSION — macOS candidate" --notes-file release-notes.md
+          fi
+          find release-assets -type f \( -name '*.dmg' -o -name '*.zip' -o -name 'SHA256SUMS-*.txt' \) -print0 | xargs -0 gh release upload "$RELEASE_TAG" --clobber

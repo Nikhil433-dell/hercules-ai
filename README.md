@@ -100,3 +100,29 @@ cd backend
 See [the acceptance checklist](docs/MILESTONE_1.md) and
 [the broader roadmap](docs/BLUEPRINT.md). Earnings calendars and watchlists
 remain future work.
+
+
+## Website and macOS downloads
+
+- Showcase: https://nikhil433-dell.github.io/hercules-ai/
+- Developer preview: https://github.com/Nikhil433-dell/hercules-ai/releases/tag/preview-2026-11-04
+- Build a DMG: `cd desktop && npm ci && npm run make:dmg`
+
+The current downloadable DMG targets Apple silicon Macs and contains the desktop
+only. Its signature is ad-hoc, without Apple Developer ID or notarization. Use a
+configured local backend as described above. The release workflow can also build
+Intel installers. See [release instructions](docs/RELEASING.md) and
+[hosting options](docs/HOSTING.md).
+
+The website lives in `website/` and deploys through GitHub Actions. Its screenshots
+and 18-second walkthrough render the actual React components using clearly labeled
+sample content and prices. To regenerate them on macOS:
+
+```bash
+cd desktop
+node showcase/build.cjs
+./node_modules/.bin/electron showcase/render.cjs
+```
+
+These preview fixtures are isolated from the production app and do not contact news
+providers or include credentials.

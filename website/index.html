@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#161718">
+  <meta name="description" content="Hercules is a small macOS menu-bar companion for financial news. Catch a headline, check the related stock, and open the original story.">
+  <title>Hercules — Market news, within reach.</title>
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+  <script src="script.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <div class="site-shell">
+    <header class="site-header">
+      <a class="wordmark" href="#" aria-label="Hercules home"><span class="wordmark-h">H</span><span>ercules</span></a>
+      <nav aria-label="Main navigation">
+        <a class="nav-link" href="#walkthrough">Walkthrough</a>
+        <a class="nav-link" href="https://github.com/Nikhil433-dell/hercules-ai">GitHub <span aria-hidden="true">↗</span></a>
+      </nav>
+    </header>
+
+    <main id="main">
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="hero-copy">
+          <p class="eyebrow"><span class="status-dot" aria-hidden="true"></span>A quiet companion for macOS</p>
+          <h1 id="hero-title">Market news.<br>At the edge<br>of your day.</h1>
+          <p class="hero-description">A small place for the stories that move markets. Catch a headline, check the related stock, and go straight to the source.</p>
+          <div class="hero-actions">
+            <a class="button button-primary" href="https://github.com/Nikhil433-dell/hercules-ai/releases/download/preview-2026-11-04/Hercules-1.0.0-arm64.dmg"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2v10m-4-4 4 4 4-4M4 13v4h12v-4"/></svg>Download for Apple silicon</a>
+            <a class="text-link" href="https://github.com/Nikhil433-dell/hercules-ai">Explore the source <span aria-hidden="true">↗</span></a>
+          </div>
+          <p class="download-note">Apple silicon · Developer preview · Backend and API keys required</p>
+          <a class="scroll-link" href="#a-closer-look">A closer look <span aria-hidden="true">↓</span></a>
+        </div>
+        <figure class="hero-visual">
+          <div class="preview-label"><span class="label-number">01</span><span>The feed, just a click away</span></div>
+          <img class="feed-preview" src="assets/feed-preview.png" alt="Hercules dark news panel with finance categories, a live status, and sample headlines with stock quotes." width="320" height="680" fetchpriority="high">
+          <figcaption>Interface previews · sample content</figcaption>
+        </figure>
+      </section>
+
+      <section id="a-closer-look" class="closer-look" aria-labelledby="closer-title">
+        <div class="section-intro">
+          <p class="eyebrow">Made to stay out of the way</p>
+          <h2 id="closer-title">A glance.<br>A little more.<br>The original.</h2>
+          <p>Keep your focus where it belongs. Hercules lives in the menu bar and brings new stories to the edge of your screen.</p>
+        </div>
+        <div class="preview-sequence">
+          <figure class="popup-figure">
+            <div class="preview-label"><span class="label-number">02</span><span>A brief heads-up</span></div>
+            <img src="assets/popup-preview.png" alt="Compact Hercules alert showing a sample market headline and its related stock quote." width="250" height="160" loading="lazy">
+            <figcaption>A new headline appears for 10 seconds. Click for the story, or let it slip away.</figcaption>
+          </figure>
+          <figure class="article-figure">
+            <div class="preview-label"><span class="label-number">03</span><span>Room for the details</span></div>
+            <img src="assets/article-preview.png" alt="Expanded Hercules article view showing sample story details, stock prices, quote times, and a link to read the original article." width="350" height="530" loading="lazy">
+            <figcaption>A source description, related stocks, and one clear path to the original article.</figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <section class="details" aria-label="How Hercules works">
+        <div class="detail"><span class="detail-index">01 / FOLLOW</span><h3>News on your terms.</h3><p>Checks your connected news providers every 60 seconds. Start with finance and business, then switch categories when your curiosity takes you elsewhere.</p></div>
+        <div class="detail"><span class="detail-index">02 / CONNECT</span><h3>The stock behind the story.</h3><p>Related tickers sit beside quotes and their timestamps. Prices need a quote-provider connection and may be delayed. Open a ticker to see more.</p></div>
+        <div class="detail"><span class="detail-index">03 / READ</span><h3>Always a way to the source.</h3><p>Skim the publisher’s description in a separate view, then open the original story in your browser. Your feed is waiting back in the menu bar.</p></div>
+      </section>
+
+      <section id="walkthrough" class="walkthrough" aria-labelledby="walkthrough-title">
+        <div class="walkthrough-heading"><div><p class="eyebrow">See the flow</p><h2 id="walkthrough-title">From headline to source.</h2></div><span class="film-label">HERCULES / INTERFACE WALKTHROUGH</span></div>
+        <div class="video-stage"><video controls playsinline preload="metadata" poster="assets/walkthrough-poster.png" aria-label="Hercules interface walkthrough with sample content"><source src="assets/walkthrough.mp4" type="video/mp4">Your browser does not support embedded video. <a href="assets/walkthrough.mp4">Download the walkthrough.</a></video></div>
+        <div class="video-caption"><p>A short interface walkthrough using sample content.</p><a href="assets/walkthrough.mp4" download>Download video <span aria-hidden="true">↓</span></a></div>
+      </section>
+
+      <section class="getting-started" aria-labelledby="setup-title">
+        <div><p class="eyebrow">A project in progress</p><h2 id="setup-title">Small app.<br>Open beginnings.</h2><p>Hercules is an early personal project, built with Electron, React, and a Python backend. The code is open to explore, run, and improve.</p></div>
+        <div class="setup-copy"><h3>Before you download</h3><p>The desktop preview needs a running Hercules backend and your own news API keys. Stock prices also need a quote provider. The project README walks through the setup.</p><p class="setup-note">The macOS preview is ad-hoc signed and not notarized. Release availability and installation details are listed on GitHub.</p><div class="setup-actions"><a class="text-link" href="https://github.com/Nikhil433-dell/hercules-ai#setup">Read the setup guide <span aria-hidden="true">↗</span></a><a class="text-link" href="https://github.com/Nikhil433-dell/hercules-ai/releases/tag/preview-2026-11-04">View releases <span aria-hidden="true">↗</span></a></div></div>
+      </section>
+    </main>
+    <footer class="site-footer"><a class="wordmark" href="#" aria-label="Hercules back to top"><span class="wordmark-h">H</span><span>ercules</span></a><p>A little closer to the news.</p><a href="https://github.com/Nikhil433-dell/hercules-ai">Built in the open <span aria-hidden="true">↗</span></a></footer>
+  </div>
+</body>
+</html>

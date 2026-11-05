@@ -1,0 +1,15 @@
+# Local credentials and environments must never enter the runtime image.
+.env
+.env.*
+!.env.example
+venv/
+.venv/
+__pycache__/
+.pytest_cache/
+*.py[cod]
+*.db
+*.sqlite
+*.sqlite3
+*.log
+.git/
+.DS_Store

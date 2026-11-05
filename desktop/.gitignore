@@ -91,3 +91,4 @@ native/bin/
 
 # Electron-Forge
 out/
+showcase/.build/
