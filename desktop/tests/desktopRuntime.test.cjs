@@ -6,8 +6,9 @@ const path = require('node:path');
 const vm = require('node:vm');
 const ts = require('typescript');
 
-async function launch(deferReady = false) {
+async function launch(deferReady = false, environment = {}) {
   const windows = [], handlers = new Map(), events = new EventEmitter();
+  const requestedURLs = [];
   let tray, monitor, now = 100000, nextTimer = 0;
   const timers = new Map();
   const schedule = (callback, delay) => { const id = ++nextTimer; timers.set(id, { callback, at: now + delay }); return id; };
@@ -58,7 +59,7 @@ async function launch(deferReady = false) {
     ipcMain: { handle: (name, fn) => handlers.set(name, fn), on: (name, fn) => events.on(name, fn) },
     nativeImage: { createFromDataURL: () => ({ resize: () => ({ setTemplateImage() {} }) }) },
     Menu: { buildFromTemplate: (template) => template }, screen: { getDisplayMatching: display, getPrimaryDisplay: display },
-    powerMonitor: new EventEmitter(), net: {}, shell: { openExternal: () => Promise.resolve() },
+    powerMonitor: new EventEmitter(), net: { fetch: async (url) => { requestedURLs.push(url); return { ok: true, json: async () => ({ articles: [] }) }; } }, shell: { openExternal: () => Promise.resolve() },
   };
   const filename = path.resolve(__dirname, '../src/index.ts');
   const compiled = ts.transpileModule(fs.readFileSync(filename, 'utf8'), {
@@ -71,15 +72,24 @@ async function launch(deferReady = false) {
       if (name === './services/newsMonitor') return { NewsMonitor: Monitor };
       return require(name);
     },
-    exports: {}, process: { platform: 'darwin', env: {} }, console,
+    exports: {}, process: { platform: 'darwin', env: environment }, console,
     MAIN_WINDOW_WEBPACK_ENTRY: 'http://localhost:3000/main_window', MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY: '/tmp/preload.js',
     URL, Date: class extends Date { static now() { return now; } },
     setTimeout: schedule, clearTimeout: (id) => timers.delete(id), AbortController,
   }, { filename });
   await new Promise((resolve) => setImmediate(resolve));
-  return { windows, events, handlers, state, advance, get tray() { return tray; }, get monitor() { return monitor; } };
+  return { windows, events, handlers, state, advance, requestedURLs, get tray() { return tray; }, get monitor() { return monitor; } };
 }
 const story = { id: 'actual-story', title: 'Actual company news', url: 'https://example.com/story', tickers: [], quotes: [] };
+
+test('packaged app defaults to the hosted API and supports an explicit local override', async () => {
+  const hosted = await launch();
+  await hosted.monitor.dependencies.fetchHeadlines('business');
+  assert.equal(hosted.requestedURLs[0], 'https://hercules-ai-red.vercel.app/news/feed?category=business');
+  const local = await launch(false, { HERCULES_API_URL: 'http://127.0.0.1:8000/' });
+  await local.monitor.dependencies.fetchHeadlines('technology');
+  assert.equal(local.requestedURLs[0], 'http://127.0.0.1:8000/news/feed?category=technology');
+});
 
 test('startup hidden; H opens panel; compact popup stays inactive; detail is separate and dismissible', async () => {
   const runtime = await launch();

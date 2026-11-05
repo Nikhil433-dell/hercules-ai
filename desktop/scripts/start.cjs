@@ -4,7 +4,8 @@ const path = require('node:path');
 
 const desktop = path.resolve(__dirname, '..');
 const backend = path.resolve(desktop, '../backend');
-const baseURL = process.env.HERCULES_API_URL || 'http://127.0.0.1:8000';
+const localRequested = process.argv.includes('--local');
+const baseURL = localRequested ? 'http://127.0.0.1:8000' : process.env.HERCULES_API_URL || require('../runtime-config.json').apiBaseUrl;
 let server;
 let client;
 let stopping = false;
@@ -28,7 +29,7 @@ process.on('SIGINT', () => stop());
 process.on('SIGTERM', () => stop());
 
 async function start() {
-  if (!(await healthy()) && !process.env.HERCULES_API_URL) {
+  if (localRequested && !(await healthy())) {
     const interpreters = process.platform === 'win32'
       ? [path.join(backend, 'venv/Scripts/python.exe'), path.join(backend, '.venv/Scripts/python.exe')]
       : [path.join(backend, 'venv/bin/python'), path.join(backend, '.venv/bin/python')];
@@ -46,7 +47,7 @@ async function start() {
     if (!ready) throw new Error('The backend could not start. Install backend/requirements.txt in backend/venv and check backend/.env, then retry.');
   }
   if (stopping) return;
-  client = spawn(process.execPath, [require.resolve('@electron-forge/cli/dist/electron-forge.js'), 'start'], { cwd: desktop, stdio: 'inherit' });
+  client = spawn(process.execPath, [require.resolve('@electron-forge/cli/dist/electron-forge.js'), 'start'], { cwd: desktop, stdio: 'inherit', env: { ...process.env, HERCULES_API_URL: baseURL } });
   client.on('error', () => { console.error('The desktop app could not start.'); stop(1); });
   client.on('exit', (code) => stop(code || 0));
 }

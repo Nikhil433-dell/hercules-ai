@@ -1,12 +1,13 @@
 {
   "name": "desktop",
   "productName": "Hercules",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Market news and stock alerts from your menu bar",
   "main": ".webpack/main",
   "private": true,
   "scripts": {
     "start": "node scripts/start.cjs",
+    "start:local": "node scripts/start.cjs --local",
     "start:desktop": "electron-forge start",
     "typecheck": "tsc --noEmit",
     "build": "npm run typecheck && electron-forge package",

@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { NewsMonitor, MonitorStorage } from './services/newsMonitor';
 import type { NewsItem, WindowView } from './shared/news';
+import { apiBaseUrl } from '../runtime-config.json';
 
 declare const MAIN_WINDOW_WEBPACK_ENTRY: string;
 declare const MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY: string;
@@ -184,7 +185,7 @@ app.whenReady().then(() => {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 30000);
       try {
-        const baseUrl = (process.env.HERCULES_API_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
+        const baseUrl = (process.env.HERCULES_API_URL || apiBaseUrl).replace(/\/$/, '');
         const response = await net.fetch(`${baseUrl}/news/feed?category=${encodeURIComponent(category)}`, { signal: controller.signal });
         if (!response.ok) {
           const detail = await response.json().catch((): null => null) as { detail?: unknown } | null;
@@ -194,7 +195,7 @@ app.whenReady().then(() => {
       } catch (error) {
         if (controller.signal.aborted) throw new Error('The news backend took too long to respond. Try refreshing.');
         if (error instanceof Error && !/fetch failed|net::|ECONNREFUSED|Failed to fetch/i.test(error.message)) throw error;
-        throw new Error('Cannot reach the local news backend. Start Hercules with npm start, or check HERCULES_API_URL.');
+        throw new Error('Cannot reach the news service. Check your internet connection and try refreshing.');
       } finally { clearTimeout(timeout); }
     },
     onState: (state) => {
