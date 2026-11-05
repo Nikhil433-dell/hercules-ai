@@ -5,6 +5,10 @@ on:
     tags: ["v*"]
   workflow_dispatch:
     inputs:
+      release_tag:
+        description: "Optional preview-* tag; leave blank to use the package version"
+        type: string
+        default: ""
       create_draft:
         description: "Create or update a draft GitHub release after both builds pass"
         type: boolean
@@ -84,12 +88,13 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           TRIGGER_TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+          REQUESTED_TAG: ${{ inputs.release_tag }}
           TARGET_SHA: ${{ github.sha }}
         run: |
           VERSION="$(node -p "require('./desktop/package.json').version")"
-          RELEASE_TAG="${TRIGGER_TAG:-v$VERSION}"
-          if [ "$RELEASE_TAG" != "v$VERSION" ]; then
-            echo "Tag must match desktop/package.json version (v$VERSION)."
+          RELEASE_TAG="${TRIGGER_TAG:-${REQUESTED_TAG:-v$VERSION}}"
+          if [ "$RELEASE_TAG" != "v$VERSION" ] && [[ "$RELEASE_TAG" != preview-* ]]; then
+            echo "Tag must match v$VERSION or use the preview-* prefix."
             exit 1
           fi
           cat > release-notes.md <<'NOTES'

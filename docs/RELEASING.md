@@ -42,3 +42,9 @@ Start it manually from Actions → **macOS release candidates**, or push a `v*` 
 The workflow never publishes a release automatically. Review both installers, confirm the backend setup instructions and signing status, then explicitly publish a tested release in GitHub if it is ready to share. Draft releases and private workflow artifacts are not public download links. A public download page should link only to deliberately published release assets.
 
 The DMG maker is documented in the official [Electron Forge DMG guide](https://www.electronforge.io/config/makers/dmg).
+
+For an explicitly labeled preview, run the workflow manually and set
+`release_tag` to a `preview-*` tag, such as `preview-2026-11-04`. This also lets
+GitHub build and upload large installers directly when a local connection cannot
+transfer release assets reliably. The workflow keeps the release a draft until
+it is deliberately published.
