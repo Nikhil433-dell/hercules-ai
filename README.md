@@ -11,7 +11,31 @@ continue while the windows are hidden.
 
 ## Setup
 
-Install backend dependencies and configure the news provider:
+Download the [macOS preview](https://github.com/Nikhil433-dell/hercules-ai/releases/tag/preview-1.0.2),
+open the DMG, and drag Hercules to Applications. Launch it, then click **H** in
+the menu bar to open the news feed. The app connects to the hosted backend at
+`https://hercules-ai-red.vercel.app` automatically. An internet connection is
+required; you do not need to run a backend or supply API keys to use the app.
+The preview is ad-hoc signed and not notarized; see the release notes for
+installation details.
+
+To run the desktop from source:
+
+```bash
+cd desktop
+npm install
+npm start
+```
+
+`npm start` uses the same hosted backend and launches Electron hidden. The
+backend address is stored in `desktop/runtime-config.json`; the packaged app
+uses that configuration too. Set `HERCULES_API_URL` in Electron's launch
+environment to override it with another trusted backend.
+
+### Optional: run your own backend
+
+Developers can self-host the backend and keep provider credentials on their own
+server. This is optional for users of the default desktop app.
 
 ```bash
 cd backend
@@ -30,25 +54,25 @@ Start the app and local backend together:
 
 ```bash
 cd desktop
-npm install
-npm start
+npm run start:local
 ```
 
-`npm start` reuses a healthy backend or starts it with the project's Python
-virtual environment, then launches Electron hidden. Quit the desktop or stop
-this command to stop the backend it started. `npm run start:desktop` launches
-only Electron when you manage the backend separately.
-
-The packaged app requires a running backend. To start it separately:
+`start:local` uses `http://127.0.0.1:8000`, reusing a healthy local backend or
+starting one with the project's Python virtual environment. Quit the desktop
+or stop this command to stop the backend it started. To manage the backend
+separately:
 
 ```bash
 cd backend
 ./venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-The default backend URL is `http://127.0.0.1:8000`. Set `HERCULES_API_URL` when
-launching Electron to use another trusted backend. The source launcher does not
-start a local server when a custom URL is configured.
+Then launch Electron with the local URL explicitly:
+
+```bash
+cd desktop
+HERCULES_API_URL=http://127.0.0.1:8000 npm run start:desktop
+```
 
 ## Live news and prices
 
@@ -69,11 +93,12 @@ Quotes show their observation time; absent or failed quotes are marked
 unavailable. A missing currency is not assumed to be USD. News delivery works
 when quotes are unavailable.
 
-If prices do not appear, add `FINNHUB_API_KEY` to `backend/.env` and restart the
-backend. A news API key alone does not provide stock prices. The desktop now
-shows a price-connection notice and per-stock error reasons rather than silently
-omitting prices. Company matching can still leave ambiguous stories without a
-stock association; it never fabricates a price.
+If prices do not appear, the desktop shows a price-connection notice and
+per-stock error reasons. Provider availability, quotas, and company matching can
+leave a story without a quote; Hercules never fabricates a price. Users of the
+hosted service do not need their own quote-provider key. If you self-host, add
+`FINNHUB_API_KEY` to your backend's environment and restart it; a news API key
+alone does not provide stock prices.
 
 ## Development
 
@@ -105,12 +130,12 @@ remain future work.
 ## Website and macOS downloads
 
 - Showcase: https://nikhil433-dell.github.io/hercules-ai/
-- Developer preview: https://github.com/Nikhil433-dell/hercules-ai/releases/tag/preview-1.0.1
+- Developer preview: https://github.com/Nikhil433-dell/hercules-ai/releases/tag/preview-1.0.2
 - Build a DMG: `cd desktop && npm ci && npm run make:dmg`
 
 The downloadable DMGs support Apple silicon and Intel Macs and contain the desktop
-only. Its signature is ad-hoc, without Apple Developer ID or notarization. Use a
-configured local backend as described above. The release workflow builds both architectures. See [release instructions](docs/RELEASING.md) and
+only and connect to the hosted API automatically. Their signature is ad-hoc,
+without Apple Developer ID or notarization. The release workflow builds both architectures. See [release instructions](docs/RELEASING.md) and
 [hosting options](docs/HOSTING.md).
 
 The website lives in `website/` and deploys through GitHub Actions. Its screenshots

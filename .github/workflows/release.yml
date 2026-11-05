@@ -102,7 +102,7 @@ jobs:
 
           - Apple silicon: arm64 DMG. Intel: x64 DMG.
           - These builds have an ad-hoc integrity signature, no verified Developer ID, and are not notarized. Gatekeeper may block opening them.
-          - The DMG contains the desktop app only. Live news requires a separately running FastAPI backend and the tester's own provider API keys. No API keys are included.
+          - The app connects to the hosted Hercules API by default. Normal use does not require a local Python backend. Provider API keys stay on the backend and are not included in the app. Developers can override HERCULES_API_URL for self-hosting.
           - See docs/RELEASING.md in this repository for setup and verification instructions.
           - ZIP files and SHA-256 checksums accompany each architecture.
 

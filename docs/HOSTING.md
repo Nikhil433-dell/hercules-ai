@@ -1,6 +1,6 @@
 # Sharing and hosting Hercules
 
-Verified against the repository and official provider documentation on November 4, 2026.
+Updated for desktop preview 1.0.2 on November 5, 2026. The hosted Hercules API has been verified with `/health` and a live business feed; provider documentation references below describe optional self-hosting paths.
 
 Use three separate delivery surfaces:
 
@@ -8,50 +8,66 @@ Use three separate delivery surfaces:
 | --- | --- | --- |
 | Downloadable Mac app | GitHub Releases | Hosts the DMG and release notes |
 | Product description and download link | GitHub Pages | Hosts a static showcase website |
-| Live news and stock-price requests | Local FastAPI server, or a separate backend host | Calls providers using server-side credentials |
+| Live news and stock-price requests | Hosted Hercules API on Vercel | Calls providers using server-side credentials |
 
 GitHub Releases supports downloadable binaries attached to a tagged version.
 GitHub Pages publishes static HTML/CSS/JavaScript; it cannot run the Electron
 menu-bar app or FastAPI backend. [Releases documentation](https://docs.github.com/en/repositories/releasing-projects-on-github/about-releases),
 [Pages documentation](https://docs.github.com/en/pages/getting-started-with-github-pages/what-is-github-pages).
 
-## What the current downloadable app requires
+## Default hosted connection
 
-The packaged Mac app uses `http://127.0.0.1:8000` by default. It does not bundle
-Python, start a backend, or install provider credentials. Someone downloading
-the DMG must run their own configured backend, or connect to a trusted hosted
-backend. The source project's `npm start` launcher can start a local backend;
-that development convenience is separate from the packaged app.
+Desktop preview 1.0.2 connects automatically to:
 
-Quit Hercules before changing its server. A developer can launch the installed
-app from Terminal with a custom URL:
-
-```bash
-HERCULES_API_URL="https://YOUR-SERVICE.onrender.com" /Applications/Hercules.app/Contents/MacOS/Hercules
+```text
+https://hercules-ai-red.vercel.app
 ```
 
-Replace the example URL with the actual service address. This setting applies
-only to that launch. There is currently no persistent backend-URL control in
-the app and no support for entering a backend login/token. A normal Finder
-launch uses the default local URL again.
+The shared default is stored in `desktop/runtime-config.json`. Both `npm start`
+and packaged Finder launches use it. The API's `/health` endpoint and
+`/news/feed?category=business` have been checked successfully, with 10 articles
+and quote status `ready`. This is a point-in-time check, not an availability or
+price-latency guarantee.
 
-The first release should be described as a developer preview requiring backend
-setup. Do not advertise an all-in-one install, authenticated hosted accounts,
-universal company matching, guaranteed instant news, or a bundled earnings
-calendar. Price availability depends on a configured financial-data provider;
-news-provider keys alone do not provide stock prices. Quote times and provider
-limits still apply. Code signing/notarization status and supported CPU
-architecture must match the actual release artifact.
+Someone downloading the DMG needs an internet connection; no local Python
+server or personal API keys are required. Provider credentials belong in the
+backend host's secret environment settings and are never bundled in the app or
+website. The website itself stays static on GitHub Pages.
 
-## Minimal Render Docker deployment
+Price availability depends on the backend's financial-data connection, company
+matching, and provider limits. Quote timestamps show when prices were observed.
+The preview is ad-hoc signed and not notarized. It does not offer authenticated
+hosted accounts, universal company matching, or an earnings calendar.
 
-Render is the simplest documented hosted-backend path for this repository.
-The following is a developer deployment recipe, not a completed deployment.
-No hosting account or paid service is created by these instructions.
+## Optional: use another backend
 
-Before offering a shared hosted service, add authentication and per-user rate
-limits or put an authenticated gateway in front of the backend. The current API
-has neither: anyone reaching its URL can consume the server's provider quotas,
+Developers can run a self-hosted backend with their own server-side news and
+quote-provider keys. `npm run start:local` in `desktop/` starts or reuses a local
+backend at `http://127.0.0.1:8000`, then launches the desktop against it. See the
+README for Python environment setup. Plain `npm start` uses the hosted default
+and does not start a local server.
+
+Quit Hercules before changing its server. To override the installed app's URL
+for one launch:
+
+```bash
+HERCULES_API_URL="http://127.0.0.1:8000" /Applications/Hercules.app/Contents/MacOS/Hercules
+```
+
+Replace the example URL with your trusted backend's address if hosting it
+elsewhere. The setting applies only to that launch. There is currently no
+persistent backend-URL control in the app and no support for entering a backend
+login/token. A normal Finder launch uses the hosted default again.
+
+## Optional: Render Docker deployment
+
+The default service is already hosted on Vercel. The following Render recipe
+is an alternative for developers who want their own Docker-based backend; it
+does not change or redeploy the default service. No hosting account or paid
+service is created by these instructions.
+
+When operating a shared hosted service, account for provider-quota exposure.
+The current API has no authentication or per-user rate limits: anyone reaching its URL can consume the server's provider quotas,
 and `/news/summary` can invoke the configured LLM. CORS is a browser policy, not
 API authentication. The current desktop also needs a way to supply any gateway
 credentials before that authenticated service is usable from it.
@@ -81,8 +97,9 @@ credentials before that authenticated service is usable from it.
    articles and `quote_status` in the feed response. The backend caches each
    category for 60 seconds in memory; caches reset after a restart and are
    separate across instances. Start with one instance for a developer preview.
-8. Once access control is implemented, connect the desktop to the HTTPS service
-   URL as described above. Publish that setup requirement alongside the DMG.
+8. Connect a development desktop to your HTTPS service using the URL override
+   above. An authenticated gateway also needs desktop support for passing its
+   credentials; the current app does not implement that login flow.
 
 Official references: [Docker setup](https://render.com/docs/docker),
 [monorepo root directories](https://render.com/docs/monorepo-support),
@@ -111,7 +128,7 @@ quota, and client-configuration work remains necessary.
 [Fly app configuration](https://docs.fly.io/reference/configuration),
 [Fly secrets](https://docs.fly.io/apps/secrets).
 
-For the first public release, GitHub Pages plus a GitHub Release and a clearly
-explained local-backend setup is the lowest-complexity option. A hosted shared
-backend is a separate product step, because it needs access control and a
-persistent server selection/login flow in the app.
+The default distribution uses GitHub Pages for the showcase, GitHub Releases
+for the desktop installers, and Vercel for the hosted API. Local and alternative
+hosted backends are optional development choices. Release notes should identify
+the default service URL and actual signing status of each preview.
