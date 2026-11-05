@@ -105,13 +105,12 @@ remain future work.
 ## Website and macOS downloads
 
 - Showcase: https://nikhil433-dell.github.io/hercules-ai/
-- Developer preview: https://github.com/Nikhil433-dell/hercules-ai/releases/tag/preview-2026-11-04
+- Developer preview: https://github.com/Nikhil433-dell/hercules-ai/releases/tag/preview-1.0.1
 - Build a DMG: `cd desktop && npm ci && npm run make:dmg`
 
-The current downloadable DMG targets Apple silicon Macs and contains the desktop
+The downloadable DMGs support Apple silicon and Intel Macs and contain the desktop
 only. Its signature is ad-hoc, without Apple Developer ID or notarization. Use a
-configured local backend as described above. The release workflow can also build
-Intel installers. See [release instructions](docs/RELEASING.md) and
+configured local backend as described above. The release workflow builds both architectures. See [release instructions](docs/RELEASING.md) and
 [hosting options](docs/HOSTING.md).
 
 The website lives in `website/` and deploys through GitHub Actions. Its screenshots
