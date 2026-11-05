@@ -1,7 +1,7 @@
 {
   "name": "desktop",
   "productName": "Hercules",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Market news and stock alerts from your menu bar",
   "main": ".webpack/main",
   "private": true,

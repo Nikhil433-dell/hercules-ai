@@ -1,4 +1,5 @@
 import type { ForgeConfig } from '@electron-forge/shared-types';
+import * as path from 'node:path';
 import { MakerSquirrel } from '@electron-forge/maker-squirrel';
 import { MakerZIP } from '@electron-forge/maker-zip';
 import { MakerDMG } from '@electron-forge/maker-dmg';
@@ -16,6 +17,7 @@ import { version } from './package.json';
 const config: ForgeConfig = {
   packagerConfig: {
     asar: true,
+    icon: path.resolve(__dirname, 'assets/icon'),
     // Re-seal development builds after packaging changes Electron's metadata.
     // Ad-hoc signing provides integrity, not a verified Developer ID identity.
     osxSign: {
@@ -32,6 +34,7 @@ const config: ForgeConfig = {
     new MakerZIP({}, ['darwin']),
     new MakerDMG((arch) => ({
       name: `Hercules-${version}-${arch}`,
+      icon: path.resolve(__dirname, 'assets/icon.icns'),
       format: 'UDZO',
       overwrite: true,
     })),

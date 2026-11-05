@@ -23,8 +23,8 @@ For a backend at another address, set `HERCULES_API_URL` in the app's launch env
 ## Verify a candidate
 
 ```sh
-hdiutil verify desktop/out/make/Hercules-1.0.0-arm64.dmg
-shasum -a 256 desktop/out/make/Hercules-1.0.0-arm64.dmg
+hdiutil verify desktop/out/make/Hercules-1.0.1-arm64.dmg
+shasum -a 256 desktop/out/make/Hercules-1.0.1-arm64.dmg
 codesign --verify --deep --strict --verbose=2 desktop/out/Hercules-darwin-arm64/Hercules.app
 spctl --assess --type execute --verbose=2 desktop/out/Hercules-darwin-arm64/Hercules.app
 ```
@@ -37,14 +37,14 @@ For a public release, configure an Apple Developer ID certificate, sign the appl
 
 `.github/workflows/release.yml` builds Apple silicon and Intel installers on macOS runners. It runs the desktop checks, builds DMG and ZIP files, verifies application signature integrity and the images, and uploads the installers and SHA-256 checksums as workflow artifacts for 30 days.
 
-Start it manually from Actions → **macOS release candidates**, or push a `v*` tag matching the version in `desktop/package.json` (for example, `v1.0.0`). Manual runs optionally create a draft release for the package version; tag runs create a draft after both architecture builds pass. Existing published releases are never modified. Draft asset updates replace same-named assets.
+Start it manually from Actions → **macOS release candidates**, or push a `v*` tag matching the version in `desktop/package.json` (for example, `v1.0.1`). Manual runs optionally create a draft release for the package version; tag runs create a draft after both architecture builds pass. Existing published releases are never modified. Draft asset updates replace same-named assets.
 
 The workflow never publishes a release automatically. Review both installers, confirm the backend setup instructions and signing status, then explicitly publish a tested release in GitHub if it is ready to share. Draft releases and private workflow artifacts are not public download links. A public download page should link only to deliberately published release assets.
 
 The DMG maker is documented in the official [Electron Forge DMG guide](https://www.electronforge.io/config/makers/dmg).
 
 For an explicitly labeled preview, run the workflow manually and set
-`release_tag` to a `preview-*` tag, such as `preview-2026-11-04`. This also lets
+`release_tag` to a `preview-*` tag, such as `preview-1.0.1`. This also lets
 GitHub build and upload large installers directly when a local connection cannot
 transfer release assets reliably. The workflow keeps the release a draft until
 it is deliberately published.
