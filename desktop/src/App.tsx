@@ -24,6 +24,6 @@ export default function App() {
   }, []);
   if (!view) return null;
   if (view.kind === 'popup') return view.article ? <NewsPopup article={view.article} expiresAt={view.expiresAt} /> : null;
-  if (view.kind === 'article') return <ArticleView article={view.article} />;
+  if (view.kind === 'article') return <ArticleView article={view.article} analysisStatus={view.articleAnalysisStatus} />;
   return <SidePanel onMinimize={() => window.electronAPI?.minimizePanel()} />;
 }

@@ -8,6 +8,8 @@ __pycache__/
 # Environment
 .env
 .env.local
+/backend/hercules.db*
+/backend/data/
 
 # Build outputs
 dist/
@@ -30,3 +32,6 @@ desktop/release/
 
 # Logs
 *.log
+
+# Local rollback archives (may include licensed research notes)
+/backups/

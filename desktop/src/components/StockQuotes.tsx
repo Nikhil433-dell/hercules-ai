@@ -25,16 +25,53 @@ function quoteTime(quote: StockQuote | undefined): string {
   return `As of ${timestamp.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}`;
 }
 
-export default function StockQuotes({ article, compact = false }: { article: NewsItem; compact?: boolean }) {
-  const symbols = Array.from(new Set([...article.tickers, ...(article.quotes || []).map(quote => quote.symbol)]));
-  if (symbols.length === 0) return <span className="no-ticker">No stock identified for this story</span>;
-  return <div className={`stock-quotes ${compact ? 'stock-quotes--compact' : ''}`}>
-    {symbols.map(symbol => {
-      const quote = article.quotes?.find(candidate => candidate.symbol === symbol);
-      return <button className="stock-quote" key={symbol} onClick={event => { event.stopPropagation(); window.electronAPI?.openExternal(`https://finance.yahoo.com/quote/${encodeURIComponent(symbol)}/`); }} title={`${symbol}: ${quote?.price == null ? errorText(quote) : priceText(quote)}. View stock on Yahoo Finance`}>
-        <span className="quote-line"><strong>{symbol} ↗</strong><span>{priceText(quote)}</span></span>
-        {quoteTime(quote) && <span className="quote-time">{quoteTime(quote)}</span>}
-      </button>;
-    })}
-  </div>;
+export function StockQuoteLink({ symbol, quote, relationship }: {
+  symbol: string;
+  quote?: StockQuote;
+  relationship?: 'direct' | 'indirect';
+}) {
+  const yahooSymbol = /^BRK\.[AB]$/.test(symbol) ? symbol.replace('.', '-') : symbol;
+  const observationTime = quoteTime(quote);
+  const provider = quote?.source?.toLowerCase() === 'finnhub' ? 'Finnhub' : undefined;
+  return (
+    <button
+      className="stock-quote"
+      onClick={(event) => {
+        event.stopPropagation();
+        window.electronAPI?.openExternal(`https://finance.yahoo.com/quote/${encodeURIComponent(yahooSymbol)}/`);
+      }}
+      title={`${symbol}: ${quote?.price == null ? errorText(quote) : priceText(quote)}. View stock on Yahoo Finance`}
+    >
+      <span className="quote-line"><strong>{symbol} ↗</strong><span>{priceText(quote)}</span></span>
+      {relationship && <span className="quote-relationship">{relationship === 'direct' ? 'Direct exposure' : 'Indirect exposure'}</span>}
+      {observationTime && <span className="quote-time">{observationTime}{provider && ` · ${provider}`}</span>}
+    </button>
+  );
+}
+
+export default function StockQuotes({ article, compact = false, excludeSymbols = [], label }: {
+  article: NewsItem;
+  compact?: boolean;
+  excludeSymbols?: string[];
+  label?: string;
+}) {
+  const affected = new Map(article.analysis?.companies.map(({ symbol, relationship }) => [symbol, relationship]));
+  const symbols = Array.from(new Set([...affected.keys(), ...article.tickers, ...(article.quotes || []).map((quote) => quote.symbol)]))
+    .filter((symbol) => !excludeSymbols.includes(symbol));
+  if (symbols.length === 0) {
+    return excludeSymbols.length > 0 ? null : <span className="no-ticker">No stock identified for this story</span>;
+  }
+  return (
+    <div className={`stock-quotes ${compact ? 'stock-quotes--compact' : ''}`}>
+      {label && <span className="quote-list-label">{label}</span>}
+      {symbols.map((symbol) => (
+        <StockQuoteLink
+          key={symbol}
+          symbol={symbol}
+          quote={article.quotes?.find((quote) => quote.symbol === symbol)}
+          relationship={compact ? undefined : affected.get(symbol)}
+        />
+      ))}
+    </div>
+  );
 }

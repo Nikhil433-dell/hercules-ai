@@ -1,10 +1,12 @@
 """Provider delivery tests use HTTP mocks and never spend API credits."""
 import asyncio
+import json
 from unittest.mock import AsyncMock
 import httpx
 import pytest
 from app.main import app
 from app.services.live_feed import FeedUnavailable, LiveFeedService
+from app.services.market_analyzer import MarketAnalyzer
 
 
 @pytest.mark.asyncio
@@ -208,3 +210,141 @@ async def test_usable_finnhub_stories_survive_bad_records_without_fallback():
     assert len(feed['articles']) == 1
     assert feed['articles'][0]['title'] == 'Market news'
     fetcher.fetch_by_category.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_local_analysis_keeps_provider_tags_and_adds_all_supported_source_tickers():
+    gate = asyncio.Event()
+    observed_urls = []
+    quote_symbols = []
+    description = "Shopify Inc. raised full-year guidance after reporting earnings."
+    supplier = "Dell Technologies will supply the infrastructure for the expansion."
+
+    async def analyze(articles):
+        await gate.wait()
+        observed_urls.extend(article["url"] for article in articles)
+        return [{
+            **article,
+            "analysis": {
+                "event_type": "guidance", "relevance": "high",
+                "why_it_matters": "Higher guidance changes the published outlook.",
+                "companies": [
+                    {"name": "Shopify Inc.", "relationship": "direct", "evidence": description},
+                    {"name": "Private Vendor", "relationship": "indirect", "evidence": "Private Vendor supplies the company."},
+                ],
+            },
+        } for article in articles]
+
+    def handle(request):
+        if request.url.path.endswith("/news"):
+            return httpx.Response(200, json=[{
+                "headline": "Shopify updates guidance", "summary": description + " " + supplier,
+                "url": "https://example.com/results?utm_source=finnhub", "datetime": 1700000000,
+                "related": "MSFT",
+            }])
+        if request.url.path.endswith("/nasdaqlisted.txt"):
+            return httpx.Response(200, text=(
+                "Symbol|Security Name|Test Issue|ETF\n"
+                "SHOP|Shopify Inc. - Class A Subordinate Voting Shares|N|N\n"
+            ))
+        if request.url.path.endswith("/otherlisted.txt"):
+            return httpx.Response(200, text=(
+                "ACT Symbol|Security Name|Test Issue|ETF\n"
+                "DELL|Dell Technologies Inc. Class C Common Stock|N|N\n"
+            ))
+        quote_symbols.append(request.url.params["symbol"])
+        return httpx.Response(200, json={"c": 0})
+
+    fetcher = AsyncMock()
+    fetcher.fetch_by_category.return_value = [{
+        "title": "Shopify updates guidance", "description": description, "content": "Provider article body.",
+        "url": "https://example.com/results", "published_at": "2023-11-14T22:13:20Z",
+    }, {
+        "title": "Shopify lifts outlook", "description": description + " " + supplier,
+        "url": "https://other.example.com/earnings", "published_at": "2023-11-14T23:00:00Z",
+    }]
+    analyzer = AsyncMock()
+    analyzer.last_status = "ready"
+    analyzer.analyze.side_effect = analyze
+    service = LiveFeedService(fetcher, "test-key", transport=httpx.MockTransport(handle), analyzer=analyzer)
+    try:
+        pending = await service.get_feed("business")
+        assert pending["analysis_status"] == "pending"
+        assert len(pending["articles"]) == 2
+        assert all("analysis" not in a and "content" not in a for a in pending["articles"])
+        gate.set()
+        await service._analysis_task
+        ready = await service.get_feed("business")
+        assert ready["analysis_status"] == "ready"
+        assert len(observed_urls) == 2
+        assert quote_symbols == ["MSFT", "SHOP", "DELL"]
+        assert len({a["analysis"]["event_id"] for a in ready["articles"]}) == 1
+        for article in ready["articles"]:
+            assert article["analysis"]["alert_eligible"]
+            assert [company["symbol"] for company in article["analysis"]["companies"]] == ["SHOP"]
+            assert article["tickers"][:2] == ["SHOP", "DELL"]
+            assert all(quote["price"] is None for quote in article["quotes"])
+        assert ready["articles"][1]["tickers"] == ["SHOP", "DELL", "MSFT"]
+        analyzer.analyze.assert_awaited_once()
+    finally:
+        await service.close()
+
+
+@pytest.mark.asyncio
+async def test_ollama_failure_keeps_finance_available_and_retries_after_cooldown():
+    fetcher = AsyncMock()
+    fetcher.fetch_by_category.return_value = [{"title": "Microsoft reports earnings", "url": "https://example.com/story"}]
+    analyzer = AsyncMock()
+    analyzer.analyze.side_effect = RuntimeError("provider internals")
+    clock = [100]
+    service = LiveFeedService(fetcher, analyzer=analyzer, clock=lambda: clock[0])
+    try:
+        await service.get_feed("business")
+        await service._analysis_task
+        fallback = await service.get_feed("business")
+        assert fallback["analysis_status"] == "unavailable"
+        assert fallback["articles"][0]["tickers"] == ["MSFT"]
+        assert "provider internals" not in str(fallback)
+        analyzer.analyze.assert_awaited_once()
+        clock[0] += 61
+        assert (await service.get_feed("business"))["analysis_status"] == "pending"
+        await service._analysis_task
+        assert analyzer.analyze.await_count == 2
+    finally:
+        await service.close()
+
+
+@pytest.mark.asyncio
+async def test_opened_macro_story_can_be_analyzed_after_missing_the_shortlist():
+    url = "https://example.com/fed"
+    title = "The Fed changes its meeting schedule"
+    calls = []
+
+    def ollama(request):
+        payload = json.loads(request.content)
+        is_shortlist = "candidate_ids" in payload["format"]["properties"]
+        calls.append(is_shortlist)
+        result = {"candidate_ids": []} if is_shortlist else {
+            "candidate_id": "a0", "event_type": "macro", "relevance": "medium",
+            "why_it_matters": "A calendar change can affect when markets expect policy updates.",
+            "evidence": {"field": "title", "excerpt": title},
+            "companies": [],
+        }
+        return httpx.Response(200, json={"message": {"content": json.dumps(result)}})
+
+    fetcher = AsyncMock()
+    fetcher.fetch_by_category.return_value = [{"title": title, "url": url}]
+    analyzer = MarketAnalyzer("http://127.0.0.1:11434", "llama3.1:8b", transport=httpx.MockTransport(ollama))
+    listings = httpx.MockTransport(lambda request: httpx.Response(200, text=""))
+    service = LiveFeedService(fetcher, analyzer=analyzer, transport=listings)
+    await service.get_feed("business")
+    await service._analysis_task
+    assert "analysis" not in (await service.get_feed("business"))["articles"][0]
+    assert (await service.analyze_article("https://unseen.example"))["analysis_status"] == "expired"
+    detail = await service.analyze_article(url)
+    assert detail["analysis_status"] == "ready"
+    assert detail["articles"][0]["analysis"]["event_type"] == "macro"
+    assert detail["articles"][0]["tickers"] == []
+    assert "analysis" not in (await service.get_feed("business"))["articles"][0]
+    assert (await service.analyze_article(url)) == detail
+    assert calls == [True, False]

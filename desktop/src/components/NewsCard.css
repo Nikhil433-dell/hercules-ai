@@ -3,7 +3,7 @@
 .card-meta { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 8px; }
 .card-source { font-size: 10px; font-weight: 600; color: var(--text-secondary); overflow-wrap: anywhere; }
 .card-time { font-size: 10px; color: var(--text-muted); white-space: nowrap; }
-.card-event { align-self: flex-start; padding: 3px 5px; border-radius: 4px; background: var(--bg-hover); color: var(--text-secondary); font-size: 9px; text-transform: uppercase; letter-spacing: .45px; }
+.card-event { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; align-self: flex-start; padding: 3px 5px; border-radius: 4px; background: var(--bg-hover); color: var(--text-secondary); font-size: 9px; text-transform: uppercase; letter-spacing: .45px; }
 .card-title { font-size: 13px; line-height: 1.5; letter-spacing: -.15px; font-weight: 650; overflow-wrap: anywhere; }
 .summary-toggle { align-self: flex-start; padding: 2px 0; color: var(--text-secondary); font-size: 10px; }
 .summary-toggle:hover { color: var(--text-primary); }
@@ -21,8 +21,10 @@
 .card-excerpt { margin-top: 5px; font-size: 10px; line-height: 1.6; color: var(--text-muted); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
 .story-button { font-size: 10px; color: var(--text-secondary); }
 .stock-quotes { display: flex; flex-direction: column; gap: 4px; }
+.quote-list-label { color: var(--text-secondary); font-size: 10px; }
 .stock-quote { text-align: left; border-radius: 5px; border: 1px solid var(--border); padding: 6px 7px; color: var(--text-secondary); background: var(--bg-hover); }
 .stock-quote:hover { border-color: var(--border-strong); }
 .quote-line { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 3px 6px; font-size: 10px; }
 .quote-line strong { color: var(--text-primary); font-weight: 650; }
+.quote-relationship { display: block; margin-top: 2px; color: var(--text-secondary); font-size: 9px; }
 .quote-time { display: block; margin-top: 3px; font-size: 8px; color: var(--text-muted); }

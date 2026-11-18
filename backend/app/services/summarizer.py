@@ -4,9 +4,9 @@ import logging
 import json
 import re
 from typing import List, Dict, Any
-from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
+from langchain_ollama import ChatOllama, OllamaEmbeddings
 
 logger = logging.getLogger(__name__)
 
@@ -32,11 +32,11 @@ class NewsSummarizer:
                 raise ValueError(
                     "OPENAI_API_KEY is not set. Please add it to your .env file."
                 )
-            self._llm = ChatOpenAI(
-                model="gpt-4o-mini",
-                temperature=0.3,
-                api_key=self._api_key,
-            )
+            self._llm = ChatOllama(
+            model="llama3.1:8b",
+            temperature=0.1,
+            base_url="http://localhost:11434"
+)
         return self._llm
 
     async def summarize_articles(self, articles: List[Dict]) -> Dict[str, Any]:

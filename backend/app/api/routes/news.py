@@ -4,6 +4,7 @@ import logging
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Request, HTTPException, Query
+from pydantic import BaseModel, Field
 
 from app.config import settings
 from app.services.live_feed import FeedUnavailable
@@ -18,6 +19,16 @@ from app.models.schemas import (
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+class ArticleAnalysisRequest(BaseModel):
+    url: str = Field(min_length=1, max_length=4096)
+
+
+@router.post("/analysis")
+async def analyze_article(request: Request, article: ArticleAnalysisRequest):
+    """Analyze one article already present in the local Finance feed."""
+    return await request.app.state.live_feed.analyze_article(article.url)
 
 
 @router.get("/feed")

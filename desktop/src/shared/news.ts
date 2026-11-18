@@ -7,6 +7,26 @@ export interface StockQuote {
   source?: string;
 }
 
+export type AnalysisStatus = 'disabled' | 'pending' | 'ready' | 'unavailable';
+export type ArticleAnalysisStatus = AnalysisStatus | 'expired';
+
+export interface NewsAnalysis {
+  eventId: string;
+  eventType: string;
+  relevance: 'high' | 'medium' | 'low';
+  whyItMatters: string;
+  evidence?: string;
+  evidenceScope?: 'provider_text' | 'provider_snippet';
+  alertEligible: boolean;
+  companies: Array<{
+    symbol: string;
+    name: string;
+    relationship: 'direct' | 'indirect';
+    evidence: string;
+    connection?: string;
+  }>;
+}
+
 export interface NewsItem {
   id: string;
   title: string;
@@ -18,6 +38,7 @@ export interface NewsItem {
   tickers: string[];
   quotes: StockQuote[];
   eventType?: string;
+  analysis?: NewsAnalysis;
 }
 
 export interface NewsState {
@@ -27,6 +48,8 @@ export interface NewsState {
   error: string | null;
   lastChecked: string | null;
   refreshIntervalSeconds: number;
+  analysisStatus?: AnalysisStatus;
+  analysisMessage?: string;
   quoteStatus?: {
     state: 'ready' | 'setup_required' | 'unavailable';
     message: string;
@@ -37,6 +60,7 @@ export interface WindowView {
   kind: 'panel' | 'popup' | 'article';
   article: NewsItem | null;
   expiresAt?: number;
+  articleAnalysisStatus?: ArticleAnalysisStatus;
 }
 
 export interface ElectronAPI {

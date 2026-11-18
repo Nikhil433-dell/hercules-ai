@@ -13,3 +13,4 @@ __pycache__/
 *.log
 .git/
 .DS_Store
+data/

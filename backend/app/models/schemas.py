@@ -70,6 +70,8 @@ class HealthResponse(BaseModel):
     status: str
     version: str
     uptime_seconds: float
+    ollama_enabled: bool = False
+    market_analysis_provider: str = "off"
 
 
 class UserPreferences(BaseModel):

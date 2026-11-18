@@ -38,3 +38,4 @@ button:disabled { opacity: .45; cursor: default; }
 .quote-status-notice { display: flex; flex-direction: column; gap: 4px; flex-shrink: 0; margin: 0 12px 12px; padding: 9px 10px; border: 1px solid var(--border); border-radius: 7px; background: var(--bg-surface, var(--bg-card)); font-size: 10px; line-height: 1.5; }
 .quote-status-notice strong { font-weight: 600; color: var(--text-primary); }
 .quote-status-notice span { color: var(--text-muted); }
+.feed-analysis-status { flex-shrink: 0; margin: -5px 14px 9px; color: var(--text-secondary); font-size: 10px; line-height: 1.5; }

@@ -57,14 +57,14 @@ cd desktop
 npm run start:local
 ```
 
-`start:local` uses `http://127.0.0.1:8000`, reusing a healthy local backend or
+`start:local` normally uses `http://127.0.0.1:8000`, reusing a compatible local backend or
 starting one with the project's Python virtual environment. Quit the desktop
 or stop this command to stop the backend it started. To manage the backend
 separately:
 
 ```bash
 cd backend
-./venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+MARKET_ANALYSIS_PROVIDER=ollama ./venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
 Then launch Electron with the local URL explicitly:
@@ -74,16 +74,75 @@ cd desktop
 HERCULES_API_URL=http://127.0.0.1:8000 npm run start:desktop
 ```
 
+### Gemini 4 Carbon and market event history
+
+Set `GEMINI_API_KEY` in `backend/.env` using a paid Gemini API project with
+Carbon access. Then restart the local app:
+
+```bash
+cd desktop
+MARKET_ANALYSIS_PROVIDER=gemini npm run start:local
+```
+
+The key is read by the backend. The model defaults to `gemini-4-carbon`.
+Gemini processes only the headline, description, and available article text
+needed for analysis.
+
+Validated background analyses are saved in the `market_news_events` table.
+Each event stores its source, publication time, first-seen and analysis times,
+verified companies, and model. Local history uses `backend/hercules.db` by
+default. For hosted history, set `DATABASE_URL` to a Postgres connection
+string in the backend environment. `MARKET_EVENT_HISTORY_ENABLED=false`
+turns off event storage.
+
+### Use Ollama locally
+
+Start the Ollama app on your Mac or run `ollama serve` in a separate terminal.
+Then install the model and launch Hercules from the repository root:
+
+```bash
+ollama pull llama3.1:8b
+cd desktop
+MARKET_ANALYSIS_PROVIDER=ollama npm run start:local
+```
+
+`start:local` defaults to no LLM calls. To use the optional news analyzer, run
+`MARKET_ANALYSIS_PROVIDER=ollama npm run start:local`, including when a Gemini key is present in
+`backend/.env`. If the backend on port 8000 uses another provider, the launcher
+tries port 8010. An explicit `MARKET_ANALYSIS_PROVIDER` in the launch command
+selects another provider.
+Use `OLLAMA_BASE_URL` or `OLLAMA_MODEL` in `backend/.env` to configure
+Ollama. Use `MARKET_ANALYSIS_PROVIDER=off` to turn analysis off.
+
+Open the H menu-bar widget and select Finance. Headlines load while the model
+shortlists and analyzes stories in the background. The next refresh shows
+available analysis, including the event and evidence for each
+verified company. This version reads the headline, description, and any article
+text supplied by the news provider. Hercules keeps provider tags and adds
+verified company mentions from the supplied text. Direct and indirect exposure
+labels and possible links appear beside verified matches. The compact popup
+shows the first available company connection. A ticker stays clickable
+even when Finnhub cannot return a price.
+Opening a Finance story that missed the background shortlist analyzes it on
+demand. Broad market stories can have an explanation without a company ticker.
+
+The first Finance response sets a quiet baseline. Later, fresh, significant
+company events and broad market news can trigger one popup per check.
+Choose **News popups → Off** from the H menu to review the feed quietly.
+If the analysis provider is unavailable,
+the headlines still load and market alerts pause.
+
 ## Live news and prices
 
 The desktop reads `/news/feed?category=business` and checks every 60 seconds.
 The backend caches news and quotes for 60 seconds to limit provider requests.
-Provider plan limits and publication delays still apply. Categories establish
-separate initial baselines so opening a category does not alert on old stories.
-Seen-story history persists across restarts. There is no demo mode or synthetic
+Provider plan limits and publication delays still apply. Finance establishes
+its own alert baseline independent of the category shown in the widget.
+Alert history persists across restarts. There is no demo mode or synthetic
 market data. Failed refreshes show an error and preserve existing headlines.
 
-Finance stories use Finnhub when configured, with GNews/NewsAPI as fallback.
+Without local AI, Finance uses Finnhub when configured, with GNews/NewsAPI as
+fallback. With local AI enabled, Finance can consider both sets of candidates.
 Other categories use the general news providers. Source-provided tickers take
 priority. A conservative resolver also recognizes explicit exchange/cashtag
 symbols and a limited set of major company names in headlines and descriptions.

@@ -1,6 +1,7 @@
 """FastAPI application entry point — lifecycle, middleware, and route mounting."""
 
 import logging
+import os
 import time
 from contextlib import asynccontextmanager
 
@@ -14,6 +15,8 @@ from app.services.news_fetcher import NewsFetcher
 from app.services.summarizer import NewsSummarizer
 from app.services.cache import CacheService
 from app.services.live_feed import LiveFeedService
+from app.services.market_analyzer import GeminiMarketAnalyzer, MarketAnalyzer
+from app.services.market_event_store import MarketEventStore
 from app.models.schemas import HealthResponse
 
 # Configure logging
@@ -46,20 +49,33 @@ async def lifespan(app: FastAPI):
     app.state.summarizer = NewsSummarizer(
         openai_api_key=settings.OPENAI_API_KEY,
     )
+    provider = settings.market_analysis_provider
+    analyzer = None
+    if provider == "gemini":
+        analyzer = GeminiMarketAnalyzer(settings.GEMINI_API_KEY.get_secret_value(), settings.GEMINI_MODEL, timeout=90)
+    elif provider == "ollama":
+        analyzer = MarketAnalyzer(settings.OLLAMA_BASE_URL, settings.OLLAMA_MODEL, timeout=120)
+    event_store = None
+    if analyzer and settings.MARKET_EVENT_HISTORY_ENABLED:
+        if os.environ.get("VERCEL") and settings.DATABASE_URL.startswith("sqlite"):
+            logger.warning("Set a Postgres DATABASE_URL for market event history on Vercel.")
+        else:
+            event_store = MarketEventStore(settings.DATABASE_URL)
     app.state.live_feed = LiveFeedService(
         app.state.news_fetcher, finnhub_api_key=settings.FINNHUB_API_KEY,
+        analyzer=analyzer, event_store=event_store,
     )
     app.state.cache = CacheService(
         redis_url=settings.REDIS_URL,
     )
 
     logger.info("All services initialized.")
-    yield
-
-    # --- Shutdown: Clean up resources ---
-    logger.info("Shutting down Hercules AI backend...")
-    await app.state.cache.close()
-    logger.info("Shutdown complete.")
+    try:
+        yield
+    finally:
+        await app.state.live_feed.close()
+        await app.state.cache.close()
+        logger.info("Shutdown complete.")
 
 
 # --- Create the FastAPI app ---
@@ -103,6 +119,8 @@ async def health_check():
         status="ok",
         version=settings.APP_VERSION,
         uptime_seconds=round(time.time() - _start_time, 2),
+        ollama_enabled=settings.market_analysis_provider == "ollama",
+        market_analysis_provider=settings.market_analysis_provider,
     )
 
 

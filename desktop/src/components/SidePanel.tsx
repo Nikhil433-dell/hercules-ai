@@ -58,6 +58,13 @@ export default function SidePanel({ onMinimize }: SidePanelProps) {
     ? `Checked ${checkedAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
     : 'Waiting for first check';
 
+  let analysisNotice: string | undefined;
+  if (feed.category === 'business') {
+    if (feed.analysisStatus === 'disabled') analysisNotice = 'AI stock analysis is off for this feed.';
+    if (feed.analysisStatus === 'pending') analysisNotice = 'Analyzing new stories…';
+    if (feed.analysisStatus === 'unavailable') analysisNotice = feed.analysisMessage || 'Stock analysis is unavailable. Headlines are still available.';
+  }
+
   return (
     <main className="panel-root panel-visible">
       <header className="panel-header">
@@ -91,6 +98,7 @@ export default function SidePanel({ onMinimize }: SidePanelProps) {
         <strong>{feed.quoteStatus.state === 'setup_required' ? 'Stock prices need a quote-provider connection' : 'Stock prices are temporarily unavailable'}</strong>
         <span>{feed.quoteStatus.state === 'setup_required' ? 'Connect a quote provider to see prices alongside identified stocks.' : 'Available stock links still open the latest quote in your browser.'}</span>
       </div>}
+      {analysisNotice && <p className="feed-analysis-status" role="status">{analysisNotice}</p>}
       <div className="feed-heading"><h2>Latest stories</h2><span>{feed.articles.length} stories</span></div>
       <div className="news-feed" aria-label="News stories" aria-busy={feed.loading}>
         {(feed.error || actionError) && <div className="feed-error" role="alert">{actionError || feed.error}</div>}

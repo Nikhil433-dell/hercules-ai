@@ -17,6 +17,19 @@ const { NewsMonitor, normalizeHeadlines } = serviceModule.exports;
 function headline(id, extra = {}) {
   return { title: `Story ${id}`, url: `https://example.com/${id}`, description: 'Details', published_at: '2026-11-03T15:00:00Z', tickers: ['AAPL'], ...extra };
 }
+function analyzedHeadline(id, analysis = {}, article = {}) {
+  return headline(id, {
+    published_at: new Date(Date.now() - 60_000).toISOString(),
+    analysis: {
+      event_id: `event-${id}`, event_type: 'earnings', relevance: 'high', alert_eligible: true,
+      why_it_matters: 'Revised guidance changes the sales outlook.', evidence: 'Apple revised guidance.',
+      evidence_scope: 'provider_snippet',
+      companies: [{ symbol: 'AAPL', name: 'Apple', relationship: 'direct', evidence: 'Apple revised guidance.' }],
+      ...analysis,
+    },
+    ...article,
+  });
+}
 function harness(stored = {}) {
   let storage = stored;
   let response = { articles: [headline('one')], refresh_interval_seconds: 60 };
@@ -31,18 +44,22 @@ function harness(stored = {}) {
   return { monitor, notifications, get storage() { return storage; }, setResponse(value) { response = value; }, fail() { fail = true; } };
 }
 
-test('initial headlines establish baseline, new articles alert only once, restart stays quiet', async () => {
+test('initial Finance headlines establish baseline and events alert once across syndicated copies and restart', async () => {
   const h = harness();
+  h.setResponse({ articles: [analyzedHeadline('one')], analysis_status: 'ready' });
   await h.monitor.refresh();
   assert.equal(h.notifications.length, 0);
-  h.setResponse({ articles: [headline('two'), headline('one')] });
+  h.setResponse({ articles: [analyzedHeadline('two'), analyzedHeadline('one')], analysis_status: 'ready' });
   await h.monitor.refresh();
   assert.equal(h.notifications.length, 1);
   assert.equal(h.notifications[0].title, 'Story two');
   await h.monitor.refresh();
   assert.equal(h.notifications.length, 1);
+  assert.ok(h.storage.seenFinanceEvents.includes('event-two'));
   const restarted = harness(h.storage);
-  restarted.setResponse({ articles: [headline('three'), headline('two'), headline('one')] });
+  restarted.setResponse({ articles: [analyzedHeadline('three')], analysis_status: 'ready' });
+  await restarted.monitor.refresh();
+  restarted.setResponse({ articles: [analyzedHeadline('syndicated', { event_id: 'event-two' })], analysis_status: 'ready' });
   await restarted.monitor.refresh();
   assert.equal(restarted.notifications.length, 0);
   assert.equal(restarted.monitor.getState().category, 'business');
@@ -57,6 +74,28 @@ test('failed refresh keeps previous stories and reports error', async () => {
   assert.equal(h.monitor.getState().articles.length, 1);
   assert.equal(h.monitor.getState().error, 'Offline');
   assert.equal(h.monitor.getState().loading, false);
+});
+
+test('a significant market-wide story can alert without a ticker', async () => {
+  const h = harness();
+  await h.monitor.refresh();
+  const macro = analyzedHeadline('rate-decision', { event_type: 'macro', companies: [] }, { tickers: [] });
+  h.setResponse({ articles: [macro], analysis_status: 'ready' });
+  await h.monitor.refresh();
+  assert.equal(h.notifications.length, 1);
+  assert.equal(h.notifications[0].analysis.eventType, 'macro');
+  assert.deepEqual(h.notifications[0].tickers, []);
+});
+
+test('legacy all-desktops choice becomes current desktop and Off survives restart', async () => {
+  const h = harness({ category: 'technology', seen: ['previous'], popupPlacement: 'all' });
+  assert.equal(h.monitor.getPopupPlacement(), 'current');
+  h.monitor.setPopupPlacement('off');
+  await h.monitor.refresh();
+  const restarted = harness(h.storage);
+  assert.equal(restarted.monitor.getPopupPlacement(), 'off');
+  assert.equal(restarted.monitor.getState().category, 'technology');
+  assert.ok(h.storage.seen.includes('previous'));
 });
 
 test('URL variants deduplicate, actual publication time and quotes are retained', () => {
@@ -89,21 +128,27 @@ test('category change ignores stale request and suppresses historical first resp
 
 test('storage failure is visible and pauses new story popups', async () => {
   let response = { articles: [headline('one')] };
+  let storageWritable = false;
+  const notifications = [];
   const monitor = new NewsMonitor({
-    load: () => ({}), save: () => { throw new Error('Disk full'); },
-    onState: () => {}, onArticle: () => { throw new Error('Unexpected alert'); },
+    load: () => ({}), save: () => { if (!storageWritable) throw new Error('Disk full'); },
+    onState: () => {}, onArticle: (article) => notifications.push(article),
     fetchHeadlines: async () => response,
   });
   await monitor.refresh();
-  response = { articles: [headline('two')] };
+  response = { articles: [headline('two', { tickers: [] })], analysis_status: 'disabled' };
   await monitor.refresh();
   assert.match(monitor.getState().error, /Could not save/);
+  assert.equal(notifications.length, 0);
+  storageWritable = true;
+  await monitor.refresh();
+  assert.equal(notifications.length, 1);
 });
 
 test('duplicate articles within a response produce one alert', async () => {
   const h = harness();
   await h.monitor.refresh();
-  h.setResponse({ articles: [headline('two'), headline('two')] });
+  h.setResponse({ articles: [analyzedHeadline('two'), analyzedHeadline('two')], analysis_status: 'ready' });
   await h.monitor.refresh();
   assert.equal(h.notifications.length, 1);
   assert.equal(h.monitor.getState().articles.length, 1);
@@ -113,7 +158,7 @@ test('empty response cannot establish an alert baseline', async () => {
   const h = harness();
   h.setResponse({ articles: [] });
   await h.monitor.refresh();
-  h.setResponse({ articles: [headline('old')] });
+  h.setResponse({ articles: [analyzedHeadline('old')], analysis_status: 'ready' });
   await h.monitor.refresh();
   assert.equal(h.notifications.length, 0);
 });
@@ -155,4 +200,129 @@ test('price setup status reaches the desktop without hiding news, and clears onc
   h.setResponse({ articles: [headline('one')], quote_status: { state: 'ready', message: 'Stock prices connected.' } });
   await h.monitor.refresh();
   assert.equal(h.monitor.getState().quoteStatus.state, 'ready');
+});
+
+test('new stories alert without analysis or tickers in every analysis status', async () => {
+  for (const status of [undefined, 'disabled', 'unavailable', 'pending', 'ready']) {
+    const h = harness();
+    h.setResponse({ articles: [headline('baseline', { tickers: [] })], analysis_status: status });
+    await h.monitor.refresh();
+    assert.equal(h.notifications.length, 0);
+    h.setResponse({ articles: [headline('new', { tickers: [] })], analysis_status: status });
+    await h.monitor.refresh();
+    assert.equal(h.notifications.length, 1, `status ${status}`);
+    assert.deepEqual(h.notifications[0].tickers, []);
+    assert.equal(h.notifications[0].analysis, undefined);
+    await h.monitor.refresh();
+    assert.equal(h.notifications.length, 1);
+  }
+});
+
+test('late enrichment never repeats a popup or alerts a baseline event copy', async () => {
+  const h = harness();
+  h.setResponse({ articles: [headline('baseline')], analysis_status: 'pending' });
+  await h.monitor.refresh();
+  h.setResponse({ articles: [headline('baseline'), headline('new')], analysis_status: 'pending' });
+  await h.monitor.refresh();
+  assert.equal(h.notifications.length, 1);
+  assert.equal(h.notifications[0].title, 'Story new');
+  h.setResponse({
+    articles: [analyzedHeadline('copy', { event_id: 'event-baseline' }), analyzedHeadline('baseline'), analyzedHeadline('new')],
+    analysis_status: 'ready',
+  });
+  await h.monitor.refresh();
+  assert.equal(h.notifications.length, 1);
+  h.setResponse({ articles: [analyzedHeadline('new-copy', { event_id: 'event-new' })] });
+  await h.monitor.refresh();
+  assert.equal(h.notifications.length, 1);
+});
+
+test('Finance preserves impact ranking and evidence without requiring it for alerts', async () => {
+  const h = harness();
+  await h.monitor.refresh();
+  h.setResponse({
+    analysis_status: 'ready',
+    articles: [
+      analyzedHeadline('medium', { relevance: 'medium' }),
+      analyzedHeadline('high'),
+      analyzedHeadline('bad', { companies: [{ symbol: 'AAPL', name: 'Apple', relationship: 'direct', evidence: '' }] }),
+    ],
+  });
+  await h.monitor.refresh();
+  const articles = h.monitor.getState().articles;
+  assert.ok(articles.findIndex((item) => item.title === 'Story high') < articles.findIndex((item) => item.title === 'Story medium'));
+  assert.equal(articles.find((item) => item.title === 'Story bad').analysis, undefined);
+  assert.deepEqual(h.notifications.map((item) => item.title), ['Story high']);
+  assert.equal(h.notifications[0].analysis.evidenceScope, 'provider_snippet');
+  assert.equal(h.notifications[0].analysis.companies[0].relationship, 'direct');
+  h.setResponse({ articles: [analyzedHeadline('low', { relevance: 'low', alert_eligible: false })] });
+  await h.monitor.refresh();
+  assert.equal(h.notifications[1].title, 'Story low');
+});
+
+test('Off suppresses popups and re-enabling establishes a quiet baseline', async () => {
+  const h = harness();
+  await h.monitor.refresh();
+  h.monitor.setPopupPlacement('off');
+  h.setResponse({ articles: [headline('while-off')] });
+  await h.monitor.refresh();
+  assert.equal(h.notifications.length, 0);
+  h.monitor.setPopupPlacement('current');
+  h.setResponse({ articles: [headline('at-reenable')] });
+  await h.monitor.refresh();
+  assert.equal(h.notifications.length, 0);
+  h.setResponse({ articles: [headline('after-reenable')] });
+  await h.monitor.refresh();
+  assert.deepEqual(h.notifications.map((item) => item.title), ['Story after-reenable']);
+});
+
+test('stored article history suppresses unanalysed copies after restart', async () => {
+  const h = harness();
+  await h.monitor.refresh();
+  h.setResponse({ articles: [headline('new')] });
+  await h.monitor.refresh();
+  const restarted = harness(h.storage);
+  restarted.setResponse({ articles: [headline('baseline')] });
+  await restarted.monitor.refresh();
+  restarted.setResponse({ articles: [headline('new', { url: 'https://example.com/new?utm_source=copy#top' })] });
+  await restarted.monitor.refresh();
+  assert.equal(restarted.notifications.length, 0);
+});
+
+test('category browsing does not delay Finance alerts or duplicate an in-flight Finance request', async (t) => {
+  t.mock.timers.enable({ apis: ['Date'], now: Date.UTC(2026, 10, 10, 18) });
+  let resolveFinance;
+  const requests = [];
+  const notifications = [];
+  const monitor = new NewsMonitor({
+    load: () => ({ category: 'technology' }), save: () => {}, onState: () => {}, onArticle: (article) => notifications.push(article),
+    fetchHeadlines: (category) => {
+      requests.push(category);
+      if (category === 'business') return new Promise((resolve) => { resolveFinance = resolve; });
+      return Promise.resolve({ articles: [headline('tech')], analysis_status: 'ready' });
+    },
+  });
+  await monitor.refresh();
+  assert.equal(monitor.getState().articles[0].title, 'Story tech');
+  assert.equal(monitor.getState().analysisStatus, undefined);
+  resolveFinance({ articles: [analyzedHeadline('baseline')], analysis_status: 'ready' });
+  await new Promise(setImmediate);
+  await monitor.refresh();
+  assert.equal(requests.filter((category) => category === 'business').length, 1);
+  t.mock.timers.tick(60_000);
+  await monitor.refresh();
+  resolveFinance({ articles: [analyzedHeadline('background')], analysis_status: 'ready' });
+  await new Promise(setImmediate);
+  assert.equal(monitor.getState().articles[0].title, 'Story tech');
+  assert.deepEqual(notifications.map((item) => item.title), ['Story background']);
+  t.mock.timers.tick(60_000);
+  await monitor.refresh();
+  monitor.setCategory('business');
+  await new Promise(setImmediate);
+  assert.equal(requests.filter((category) => category === 'business').length, 3);
+  resolveFinance({ articles: [analyzedHeadline('on-finance')], analysis_status: 'ready' });
+  await new Promise(setImmediate);
+  assert.equal(monitor.getState().analysisStatus, 'ready');
+  assert.equal(monitor.getState().articles[0].title, 'Story on-finance');
+  assert.deepEqual(notifications.map((item) => item.title), ['Story background', 'Story on-finance']);
 });
