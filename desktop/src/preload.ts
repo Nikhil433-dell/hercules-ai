@@ -2,6 +2,8 @@ import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
 import type { ElectronAPI, NewsState, WindowView } from './shared/news';
 
 const api: ElectronAPI = {
+  getCompanyDossier: (url, symbol) => ipcRenderer.invoke('request-company-dossier', { url, symbol }),
+  researchStock: (url, symbol) => ipcRenderer.invoke('request-stock-research', { url, symbol }),
   getNewsState: () => ipcRenderer.invoke('get-news-state'),
   onNewsState: (callback) => {
     const listener = (_event: IpcRendererEvent, state: NewsState) => callback(state);

@@ -5,6 +5,7 @@ import * as path from 'path';
 import { NewsMonitor, normalizeHeadlines } from './services/newsMonitor';
 import type { MonitorStorage, PopupPlacement } from './services/newsMonitor';
 import type { ArticleAnalysisStatus, NewsItem, WindowView } from './shared/news';
+import { parseStockResearch, parseDossier } from './shared/research';
 import { apiBaseUrl } from '../runtime-config.json';
 
 declare const MAIN_WINDOW_WEBPACK_ENTRY: string;
@@ -122,7 +123,7 @@ function showArticle(id: unknown, origin?: BrowserWindow) {
   dismissAll();
   const articleWindow = createWindow('article', ARTICLE_WIDTH, ARTICLE_HEIGHT, display);
   const hostname = URL.canParse(backendUrl) ? new URL(backendUrl).hostname : '';
-  const analyzeOnOpen = article.category === 'business' && !article.analysis &&
+  const analyzeOnOpen = !article.analysis &&
     ['127.0.0.1', 'localhost', '[::1]'].includes(hostname);
   views.set(articleWindow.webContents.id, {
     kind: 'article', article, articleAnalysisStatus: analyzeOnOpen ? 'pending' : 'disabled',
@@ -312,6 +313,41 @@ app.whenReady().then(() => {
     onArticle: notify,
   });
   createTray();
+  for (const [channel, feature] of [['request-stock-research', 'research'], ['request-company-dossier', 'dossier']]) {
+    ipcMain.handle(channel, async (event, raw: unknown) => {
+      const view = views.get(event.sender.id);
+      const request = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {};
+      const article = view?.kind === 'article' ? view.article : null;
+      if (!article || request.url !== article.url || typeof request.symbol !== 'string' ||
+          !article.analysis?.companies.some(company => company.symbol === request.symbol)) {
+        return { error: 'Open the story and choose one of its affected stocks.' };
+      }
+      const controller = new AbortController();
+      const window = BrowserWindow.fromWebContents(event.sender);
+      const abort = () => controller.abort();
+      window?.once('closed', abort);
+      const timeout = setTimeout(abort, 45000);
+      try {
+        const response = await net.fetch(`${backendUrl}/news/${feature}`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: article.url, symbol: request.symbol }), signal: controller.signal,
+        });
+        if (response.status === 409) return { error: 'This story has left the current feed. Open a current story to refresh its evidence.' };
+        if (!response.ok) return { error: 'Company information is unavailable. Try again shortly.' };
+        if (feature === 'dossier') {
+          const dossier = parseDossier(await response.json(), request.symbol);
+          return dossier ? { dossier } : { error: 'The company dossier response was incomplete.' };
+        }
+        const research = parseStockResearch(await response.json(), request.symbol);
+        return research ? { research } : { error: 'The research response was incomplete. Try again shortly.' };
+      } catch {
+        return { error: controller.signal.aborted ? 'Research timed out. Try again shortly.' : 'Unable to reach stock research. Check your connection and retry.' };
+      } finally {
+        clearTimeout(timeout);
+        window?.removeListener('closed', abort);
+      }
+    });
+  }
   ipcMain.handle('get-news-state', () => monitor.getState());
   ipcMain.handle('get-window-view', (event) => views.get(event.sender.id) ?? { kind: 'panel', article: null });
   ipcMain.on('set-category', (_event, category: unknown) => { if (typeof category === 'string') monitor.setCategory(category); });

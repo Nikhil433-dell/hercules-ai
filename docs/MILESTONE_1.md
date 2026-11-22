@@ -29,3 +29,10 @@ Automated tests cover feed normalization, category baselines, deduplication,
 restart history, stale request races, provider failures, and quote/feed caching.
 The app must remain running and the Mac awake for background checks. It does
 not guarantee complete or real-time coverage of stock-moving events.
+
+## Analyst workflow checks for the current source build
+
+- Open an analyzed Technology story and inspect its company excerpt. A brand without a verified listing should stay visible by name.
+- Open a verified company’s dossier. Check the recent and baseline sample counts, original article links and the sparse-history state on a new database.
+- Open the stock-thesis view and inspect the model, evidence factors and dates. Test missing fundamentals and an unavailable model.
+- Check the feed after returning from the article and confirm the panel reopens beneath H.

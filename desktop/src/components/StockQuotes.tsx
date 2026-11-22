@@ -59,6 +59,7 @@ export default function StockQuotes({ article, compact = false, excludeSymbols =
   const symbols = Array.from(new Set([...affected.keys(), ...article.tickers, ...(article.quotes || []).map((quote) => quote.symbol)]))
     .filter((symbol) => !excludeSymbols.includes(symbol));
   if (symbols.length === 0) {
+    if (article.analysis?.unlistedCompanies?.length) return <span className="no-ticker">{article.analysis.unlistedCompanies.map(company => company.name).join(', ')} identified · ticker not verified</span>;
     return excludeSymbols.length > 0 ? null : <span className="no-ticker">No stock identified for this story</span>;
   }
   return (

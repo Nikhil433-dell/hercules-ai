@@ -20,6 +20,10 @@ Open the DMG and drag Hercules to Applications. Launching the desktop leaves the
 
 For a backend at another address, set `HERCULES_API_URL` in the app's launch environment. Finder launches do not automatically inherit variables from a terminal or read the backend `.env` file. The current UI has no backend-address setting; a normal Finder launch uses the hosted default. Developers can opt into a local backend with `npm run start:local` from `desktop/`, after configuring their own backend keys as described in the README.
 
+## Research feature compatibility
+
+The public preview 1.0.2 predates the company dossier and stock-thesis UI. For the next desktop release, run the [analyst workflow checks](MILESTONE_1.md) with the packaged client pointed at its intended backend. Confirm that `/news/analysis`, `/news/dossier` and `/news/research` work for a verified company from the same feed. Update the website download links and walkthrough labels when a matching installer is published.
+
 ## Verify a candidate
 
 ```sh

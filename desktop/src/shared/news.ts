@@ -18,12 +18,24 @@ export interface NewsAnalysis {
   evidence?: string;
   evidenceScope?: 'provider_text' | 'provider_snippet';
   alertEligible: boolean;
+  unlistedCompanies?: Array<{
+    name: string;
+    evidence: string;
+    connection?: string;
+    direction: string;
+    listingMessage: string;
+  }>;
   companies: Array<{
     symbol: string;
     name: string;
     relationship: 'direct' | 'indirect';
     evidence: string;
     connection?: string;
+    direction?: 'positive' | 'negative' | 'mixed' | 'neutral' | 'uncertain';
+    impactScore?: number;
+    confidence?: 'low' | 'medium' | 'high';
+    risks?: string[];
+    horizon?: 'short_term' | 'medium_term' | 'long_term' | 'uncertain';
   }>;
 }
 
@@ -39,6 +51,7 @@ export interface NewsItem {
   quotes: StockQuote[];
   eventType?: string;
   analysis?: NewsAnalysis;
+  curationStatus?: 'selected' | 'fallback';
 }
 
 export interface NewsState {
@@ -63,7 +76,58 @@ export interface WindowView {
   articleAnalysisStatus?: ArticleAnalysisStatus;
 }
 
+export interface StockResearch {
+  model?: string;
+  modelStatus?: string;
+  factors?: Array<{ interpretation: string; evidenceFields: string[] }>;
+  symbol: string;
+  status: 'ready' | 'partial' | 'unavailable';
+  assessedAt: string | null;
+  quoteAsOf: string | null;
+  technical: ResearchSection;
+  fundamental: ResearchSection;
+  stance: 'research_candidate' | 'watch' | 'avoid' | 'insufficient_data';
+  reasons: string[];
+  risks: string[];
+  methodology: string;
+  sources: Array<{ name: string; url: string }>;
+  history?: { observations: number; eventCounts: Record<string, number>; note: string };
+}
+export interface ResearchSection {
+  status: string;
+  asOf?: string | null;
+  signals: string[];
+  metrics: Record<string, string | number | null>;
+}
+export type StockResearchResult = { research: StockResearch; error?: never } | { error: string; research?: never };
+
+export interface DossierStory {
+  title: string;
+  source: string;
+  url: string;
+  published_at: string;
+  event_type: string;
+  evidence: string;
+  direction: string;
+}
+export interface CompanyDossier {
+  impact_channel: string;
+  symbol: string;
+  anchor: string | null;
+  excerpt: string;
+  figures: string[];
+  history_available: boolean;
+  recent_count: number;
+  baseline_count: number;
+  negative_share_change: number | null;
+  recurring: Array<{ type: string; count: number }>;
+  connections: Array<{ from: string; to: string; count: number; mechanism: string; evidence: string; source: DossierStory }>;
+  timeline: DossierStory[];
+}
+
 export interface ElectronAPI {
+  getCompanyDossier: (url: string, symbol: string) => Promise<{ dossier?: CompanyDossier; error?: string }>;
+  researchStock: (url: string, symbol: string) => Promise<StockResearchResult>;
   getNewsState: () => Promise<NewsState>;
   onNewsState: (callback: (state: NewsState) => void) => () => void;
   refreshNews: () => void;

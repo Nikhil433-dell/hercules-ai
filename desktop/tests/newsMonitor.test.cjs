@@ -202,8 +202,8 @@ test('price setup status reaches the desktop without hiding news, and clears onc
   assert.equal(h.monitor.getState().quoteStatus.state, 'ready');
 });
 
-test('new stories alert without analysis or tickers in every analysis status', async () => {
-  for (const status of [undefined, 'disabled', 'unavailable', 'pending', 'ready']) {
+test('provider failure or disabled analysis still allows fallback alerts', async () => {
+  for (const status of [undefined, 'disabled', 'unavailable']) {
     const h = harness();
     h.setResponse({ articles: [headline('baseline', { tickers: [] })], analysis_status: status });
     await h.monitor.refresh();
@@ -224,8 +224,7 @@ test('late enrichment never repeats a popup or alerts a baseline event copy', as
   await h.monitor.refresh();
   h.setResponse({ articles: [headline('baseline'), headline('new')], analysis_status: 'pending' });
   await h.monitor.refresh();
-  assert.equal(h.notifications.length, 1);
-  assert.equal(h.notifications[0].title, 'Story new');
+  assert.equal(h.notifications.length, 0);
   h.setResponse({
     articles: [analyzedHeadline('copy', { event_id: 'event-baseline' }), analyzedHeadline('baseline'), analyzedHeadline('new')],
     analysis_status: 'ready',
@@ -237,7 +236,7 @@ test('late enrichment never repeats a popup or alerts a baseline event copy', as
   assert.equal(h.notifications.length, 1);
 });
 
-test('Finance preserves impact ranking and evidence without requiring it for alerts', async () => {
+test('Finance preserves impact ranking and excludes low relevance from alerts', async () => {
   const h = harness();
   await h.monitor.refresh();
   h.setResponse({
@@ -257,7 +256,7 @@ test('Finance preserves impact ranking and evidence without requiring it for ale
   assert.equal(h.notifications[0].analysis.companies[0].relationship, 'direct');
   h.setResponse({ articles: [analyzedHeadline('low', { relevance: 'low', alert_eligible: false })] });
   await h.monitor.refresh();
-  assert.equal(h.notifications[1].title, 'Story low');
+  assert.equal(h.notifications.length, 1);
 });
 
 test('Off suppresses popups and re-enabling establishes a quiet baseline', async () => {
@@ -304,7 +303,7 @@ test('category browsing does not delay Finance alerts or duplicate an in-flight 
   });
   await monitor.refresh();
   assert.equal(monitor.getState().articles[0].title, 'Story tech');
-  assert.equal(monitor.getState().analysisStatus, undefined);
+  assert.equal(monitor.getState().analysisStatus, 'ready');
   resolveFinance({ articles: [analyzedHeadline('baseline')], analysis_status: 'ready' });
   await new Promise(setImmediate);
   await monitor.refresh();
@@ -325,4 +324,34 @@ test('category browsing does not delay Finance alerts or duplicate an in-flight 
   assert.equal(monitor.getState().analysisStatus, 'ready');
   assert.equal(monitor.getState().articles[0].title, 'Story on-finance');
   assert.deepEqual(notifications.map((item) => item.title), ['Story background', 'Story on-finance']);
+});
+
+test('unlisted company names survive analysis parsing without inventing stocks', () => {
+  const article = analyzedHeadline('oppo', { companies: [], unlisted_companies: [
+    { name: 'OPPO', evidence: 'Oppo Watch 5 launches with GPS', direction: 'positive' },
+  ] }, { category: 'technology', tickers: [] });
+  const [parsed] = normalizeHeadlines({ articles: [article] });
+  assert.equal(parsed.analysis.unlistedCompanies[0].name, 'OPPO');
+  assert.equal(parsed.analysis.unlistedCompanies[0].direction, 'positive');
+  assert.deepEqual(parsed.tickers, []);
+  assert.deepEqual(parsed.analysis.companies, []);
+});
+
+test('each selected category keeps a quiet baseline then alerts analyzed news without a provider ticker', async () => {
+  for (const category of ['general', 'technology', 'science', 'health', 'sports', 'entertainment', 'world']) {
+    let next = analyzedHeadline(`${category}-baseline`, { companies: [] }, { category, tickers: [] });
+    const notifications = [];
+    const monitor = new NewsMonitor({
+      load: () => ({ category }), save: () => {}, onState: () => {}, onArticle: article => notifications.push(article),
+      fetchHeadlines: async requested => ({ articles: [requested === 'business' ? analyzedHeadline('finance-baseline') : next], analysis_status: 'ready' }),
+    });
+    await monitor.refresh();
+    await new Promise(setImmediate);
+    assert.equal(notifications.length, 0);
+    next = analyzedHeadline(`${category}-new`, { companies: [] }, { category, tickers: [] });
+    await monitor.refresh();
+    assert.equal(monitor.getState().analysisStatus, 'ready');
+    assert.equal(notifications.length, 1, category);
+    assert.equal(notifications[0].category, category);
+  }
 });

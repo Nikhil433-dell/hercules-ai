@@ -1,12 +1,14 @@
 """News API routes — summary, headlines, and categories endpoints."""
 
 import logging
+import asyncio
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Request, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from app.config import settings
+from app.services.news_dossier import build_dossier
 from app.services.live_feed import FeedUnavailable
 from app.models.schemas import (
     CategoryEnum,
@@ -25,9 +27,43 @@ class ArticleAnalysisRequest(BaseModel):
     url: str = Field(min_length=1, max_length=4096)
 
 
+class StockResearchRequest(ArticleAnalysisRequest):
+    symbol: str = Field(pattern=r"^[A-Z][A-Z0-9.\-]{0,9}$")
+
+
+@router.post("/dossier")
+async def company_dossier(request: Request, article: StockResearchRequest):
+    context = request.app.state.live_feed.research_context(article.url, article.symbol)
+    if context is None:
+        raise HTTPException(status_code=409, detail="Reopen the current story to refresh its verified companies.")
+    store = getattr(request.app.state, "market_events", None)
+    if store:
+        try:
+            return await asyncio.to_thread(store.dossier, article.symbol, context)
+        except Exception as error:
+            logger.warning("Company history unavailable (%s).", type(error).__name__)
+    return build_dossier(article.symbol, context, [], history_available=False)
+
+
+@router.post("/research")
+async def research_stock(request: Request, article: StockResearchRequest):
+    """Check an evidence-linked company against independently fetched market data."""
+    context = request.app.state.live_feed.research_context(article.url, article.symbol)
+    if context is None:
+        raise HTTPException(status_code=409, detail="Reopen a current analyzed story and choose one of its verified companies.")
+    result = await request.app.state.stock_research.research(article.symbol, news_context=context)
+    store = getattr(request.app.state, "market_events", None)
+    if store:
+        try:
+            result['history'] = await asyncio.to_thread(store.history, article.symbol, context['event_id'])
+        except Exception:
+            result['history'] = {'observations': 0, 'event_counts': {}, 'recent': [], 'note': 'Local research history is unavailable.'}
+    return result
+
+
 @router.post("/analysis")
 async def analyze_article(request: Request, article: ArticleAnalysisRequest):
-    """Analyze one article already present in the local Finance feed."""
+    """Analyze one provider article cached in any news category."""
     return await request.app.state.live_feed.analyze_article(article.url)
 
 

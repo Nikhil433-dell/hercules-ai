@@ -35,3 +35,17 @@
 .impact-company > p { color: var(--text-secondary); font-size: 10px; line-height: 1.6; }
 .impact-evidence-label { color: var(--text-muted); font-weight: 600; margin-right: 3px; }
 .article-impact-status { color: var(--text-muted); margin: 10px 0; font-size: 11px; line-height: 1.5; }
+.impact-direction { text-transform: capitalize; }
+.impact-company .impact-positive { color: #9cd8b6; }
+.impact-company .impact-negative { color: #edb0a9; }
+.stock-research { font-size: 11px; line-height: 1.6; min-width: 0; }
+.research-button, .research-source { color: var(--text-primary); background: transparent; border: 1px solid var(--border); border-radius: 5px; padding: 5px 8px; cursor: pointer; text-align: left; }
+.research-button:disabled { opacity: .6; cursor: wait; }
+.stock-research h4 { font-size: 12px; margin-top: 10px; }
+.stock-research p, .stock-research li { color: var(--text-secondary); margin: 6px 0; }
+.stock-research ul { padding-left: 16px; }
+.stock-research details { border-top: 1px solid var(--border); margin-top: 8px; padding-top: 6px; }
+.stock-research summary { cursor: pointer; }
+.research-section dl { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 10px; margin: 8px 0; }
+.research-section dd { margin: 0; text-align: right; }
+.research-source { display: block; margin-top: 5px; }

@@ -1,6 +1,6 @@
 # Sharing and hosting Hercules
 
-Updated for desktop preview 1.0.2 on November 5, 2026. The hosted Hercules API has been verified with `/health` and a live business feed; provider documentation references below describe optional self-hosting paths.
+The published 1.0.2 desktop preview connects to the hosted news service. For the research widget, deploy matching revisions of the FastAPI backend and Electron client. Configure the news providers, model credentials and a persistent Postgres database on the backend. On serverless infrastructure, process-local feed caches and background analysis tasks can be lost between requests. Verify the full feed → analyzed article → dossier → thesis flow on the target host before advertising hosted research availability.
 
 Use three separate delivery surfaces:
 

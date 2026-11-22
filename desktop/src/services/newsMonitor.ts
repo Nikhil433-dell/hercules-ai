@@ -44,7 +44,7 @@ function parseAnalysis(raw: unknown): NewsAnalysis | undefined {
   const companies: NewsAnalysis['companies'] = [];
   for (const rawCompany of value.companies) {
     if (!rawCompany || typeof rawCompany !== 'object') return undefined;
-    const { symbol, name, relationship, evidence, connection } = rawCompany as Record<string, unknown>;
+    const { symbol, name, relationship, evidence, connection, direction, impact_score, confidence, risks, horizon } = rawCompany as Record<string, unknown>;
     if (typeof symbol !== 'string' || !TICKER_PATTERN.test(symbol) ||
         typeof name !== 'string' || !name.trim() ||
         (relationship !== 'direct' && relationship !== 'indirect') ||
@@ -52,6 +52,11 @@ function parseAnalysis(raw: unknown): NewsAnalysis | undefined {
     companies.push({
       symbol, name: name.trim(), relationship, evidence: evidence.trim(),
       connection: typeof connection === 'string' ? connection.trim().slice(0, 150) || undefined : undefined,
+      direction: direction === 'positive' || direction === 'negative' || direction === 'mixed' || direction === 'neutral' ? direction : 'uncertain',
+      impactScore: typeof impact_score === 'number' && Number.isInteger(impact_score) && Math.abs(impact_score) <= 2 ? impact_score : undefined,
+      confidence: confidence === 'high' || confidence === 'medium' ? confidence : 'low',
+      risks: Array.isArray(risks) ? risks.filter((risk): risk is string => typeof risk === 'string').slice(0, 5).map((risk) => risk.slice(0, 300)) : [],
+      horizon: horizon === 'short_term' || horizon === 'medium_term' || horizon === 'long_term' ? horizon : 'uncertain',
     });
   }
 
@@ -60,6 +65,15 @@ function parseAnalysis(raw: unknown): NewsAnalysis | undefined {
     whyItMatters: why_it_matters.trim(), alertEligible: alert_eligible, companies,
     evidence: typeof value.evidence === 'string' ? value.evidence.trim() || undefined : undefined,
     evidenceScope: value.evidence_scope === 'provider_text' || value.evidence_scope === 'provider_snippet' ? value.evidence_scope : undefined,
+    unlistedCompanies: (Array.isArray(value.unlisted_companies) ? value.unlisted_companies : []).slice(0, 5).flatMap(raw => {
+      if (!raw || typeof raw !== 'object') return [];
+      const item = raw as Record<string, unknown>;
+      if (typeof item.name !== 'string' || !item.name.trim() || typeof item.evidence !== 'string' || !item.evidence.trim()) return [];
+      return [{ name: item.name.slice(0, 100), evidence: item.evidence.slice(0, 300),
+        connection: typeof item.connection === 'string' ? item.connection.slice(0, 150) : undefined,
+        direction: ['positive', 'negative', 'mixed', 'neutral'].includes(item.direction as string) ? item.direction as string : 'uncertain',
+        listingMessage: 'Company identified from the article. No ticker verified in the supported U.S. listings; it may be private, a brand, or listed elsewhere.' }];
+    }),
   };
 }
 
@@ -122,16 +136,17 @@ export function normalizeHeadlines(payload: unknown): NewsItem[] {
         quotes: Array.isArray(article.quotes) ? article.quotes.map(parseQuote).filter((quote): quote is StockQuote => quote !== null) : [],
         eventType: typeof article.event_type === 'string' ? article.event_type : undefined,
         analysis: parseAnalysis(article.analysis),
+        curationStatus: article.curation_status === 'selected' ? 'selected' as const : article.curation_status === 'fallback' ? 'fallback' as const : undefined,
       };
     });
   return Array.from(new Map(normalized.map((article) => [article.id, article])).values())
     .sort((a, b) => (Date.parse(b.publishedAt) || 0) - (Date.parse(a.publishedAt) || 0));
 }
 
-function parseFeed(payload: unknown, category: string): FeedResult {
+function parseFeed(payload: unknown): FeedResult {
   const articles = normalizeHeadlines(payload);
   const result: FeedResult = { articles, quoteStatus: parseQuoteStatus(payload) };
-  if (category === 'business') {
+  {
     result.analysisStatus = parseAnalysisStatus(payload);
     const message = (payload as { analysis_message?: unknown })?.analysis_message;
     if (typeof message === 'string') result.analysisMessage = message.slice(0, 180);
@@ -147,7 +162,7 @@ export class NewsMonitor {
   private popupPlacement: PopupPlacement;
   private seen: Set<string>;
   private seenFinanceEvents: Set<string>;
-  private financeBaseline: Set<string> | undefined;
+  private alertBaselines = new Map<string, Set<string>>();
   private financeRequest: Promise<FeedResult> | undefined;
   private lastFinancePollAt = -Infinity;
   private timer: ReturnType<typeof setInterval> | undefined;
@@ -175,7 +190,7 @@ export class NewsMonitor {
   setPopupPlacement(placement: PopupPlacement): void {
     if (this.popupPlacement === placement) return;
     this.popupPlacement = placement;
-    if (placement === 'current') this.financeBaseline = undefined;
+    if (placement === 'current') this.alertBaselines.clear();
     if (!this.persist()) {
       this.state = { ...this.state, error: 'Could not save settings. Check available disk space and file permissions.' };
       this.emit();
@@ -193,7 +208,7 @@ export class NewsMonitor {
     this.timer = undefined;
     this.generation += 1;
     this.financeRequest = undefined;
-    this.financeBaseline = undefined;
+    this.alertBaselines.clear();
     this.lastFinancePollAt = -Infinity;
   }
 
@@ -219,8 +234,9 @@ export class NewsMonitor {
     this.emit();
     try {
       const feed = category === 'business' ? await this.fetchFinance()
-        : parseFeed(await this.dependencies.fetchHeadlines(category), category);
+        : parseFeed(await this.dependencies.fetchHeadlines(category));
       if (generation !== this.generation) return;
+      if (category !== 'business') feed.alertHistorySaved = this.processAlerts(feed, category);
       const { articles } = feed;
       this.state = {
         ...this.state, articles, loading: false, lastChecked: new Date().toISOString(),
@@ -231,7 +247,7 @@ export class NewsMonitor {
     } catch (error) {
       if (generation !== this.generation) return;
       this.state = {
-        ...this.state, loading: false, analysisStatus: category === 'business' ? 'unavailable' : undefined, analysisMessage: undefined,
+        ...this.state, loading: false, analysisStatus: 'unavailable', analysisMessage: undefined,
         error: error instanceof Error ? error.message : 'Unable to load news.',
       };
       this.emit();
@@ -244,8 +260,8 @@ export class NewsMonitor {
     if (this.financeRequest) return this.financeRequest;
     this.lastFinancePollAt = Date.now();
     const request = Promise.resolve().then(() => this.dependencies.fetchHeadlines('business')).then((payload) => {
-      const feed = parseFeed(payload, 'business');
-      if (this.financeRequest === request) feed.alertHistorySaved = this.processFinanceAlerts(feed);
+      const feed = parseFeed(payload);
+      if (this.financeRequest === request) feed.alertHistorySaved = this.processAlerts(feed, 'business');
       return feed;
     }).finally(() => {
       if (this.financeRequest === request) this.financeRequest = undefined;
@@ -254,27 +270,33 @@ export class NewsMonitor {
     return request;
   }
 
-  private processFinanceAlerts(feed: FeedResult): boolean {
-    if (!this.financeBaseline && feed.articles.length > 0) {
-      this.financeBaseline = new Set(feed.articles.map(({ id }) => id));
+  private processAlerts(feed: FeedResult, category: string): boolean {
+    if (!this.alertBaselines.has(category) && feed.articles.length > 0) {
+      this.alertBaselines.set(category, new Set(feed.articles.map(({ id }) => id)));
     }
+    const baseline = this.alertBaselines.get(category);
     const seen = new Set(this.seen);
     const events = new Set(this.seenFinanceEvents);
     // Enrichment can arrive later. Learn event IDs for already-seen stories
     // before inspecting copies, regardless of their order in the feed.
     for (const article of feed.articles) {
-      if ((seen.has(article.id) || this.financeBaseline?.has(article.id)) && article.analysis) {
+      if ((seen.has(article.id) || baseline?.has(article.id)) && article.analysis) {
         events.add(article.analysis.eventId);
       }
     }
     let newest: NewsItem | undefined;
     for (const article of feed.articles) {
       const eventId = article.analysis?.eventId;
-      const fresh = !seen.has(article.id) && !this.financeBaseline?.has(article.id) &&
+      // Wait for curation without consuming this story's chance to alert later.
+      if (!article.analysis && (feed.analysisStatus === 'pending' || feed.analysisStatus === 'ready')) continue;
+      const fresh = !seen.has(article.id) && !baseline?.has(article.id) &&
         (!eventId || !events.has(eventId));
       seen.add(article.id);
       if (eventId) events.add(eventId);
-      if (fresh && !newest && this.popupPlacement !== 'off') newest = article;
+      const selected = article.analysis
+        ? article.analysis.relevance !== 'low'
+        : feed.analysisStatus === 'disabled' || feed.analysisStatus === 'unavailable';
+      if (fresh && selected && !newest && this.popupPlacement !== 'off') newest = article;
     }
 
     // Commit history before displaying a popup. A failed save can be retried.

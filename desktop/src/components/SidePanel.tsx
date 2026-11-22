@@ -59,7 +59,7 @@ export default function SidePanel({ onMinimize }: SidePanelProps) {
     : 'Waiting for first check';
 
   let analysisNotice: string | undefined;
-  if (feed.category === 'business') {
+  {
     if (feed.analysisStatus === 'disabled') analysisNotice = 'AI stock analysis is off for this feed.';
     if (feed.analysisStatus === 'pending') analysisNotice = 'Analyzing new stories…';
     if (feed.analysisStatus === 'unavailable') analysisNotice = feed.analysisMessage || 'Stock analysis is unavailable. Headlines are still available.';
@@ -103,7 +103,7 @@ export default function SidePanel({ onMinimize }: SidePanelProps) {
       <div className="news-feed" aria-label="News stories" aria-busy={feed.loading}>
         {(feed.error || actionError) && <div className="feed-error" role="alert">{actionError || feed.error}</div>}
         {feed.loading && feed.articles.length === 0 ? <div className="empty-state" role="status">Checking for news…</div>
-          : feed.articles.length === 0 ? <div className="empty-state"><strong>No stories yet</strong><p>Check that the backend is running with a valid news API key, then refresh.</p></div>
+          : feed.articles.length === 0 ? <div className="empty-state"><strong>{feed.analysisStatus === 'ready' ? 'No relevant stories selected' : 'No stories yet'}</strong><p>{feed.analysisStatus === 'ready' ? 'The next news check runs automatically in one minute.' : 'Check that the backend is running with a valid news API key, then refresh.'}</p></div>
           : feed.articles.map((article, index) => <NewsCard key={article.id} item={article} index={index} />)}
       </div>
       <footer className="panel-footer"><span role="status">{lastChecked}</span><span>Alerts stay on when hidden</span></footer>

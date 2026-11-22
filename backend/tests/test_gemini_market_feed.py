@@ -1,4 +1,4 @@
-"""Exercise Carbon's API contract and the feed without spending model quota."""
+"""Exercise Hydrogen's API contract and the feed without spending model quota."""
 
 import json
 from unittest.mock import AsyncMock
@@ -24,7 +24,7 @@ async def test_gemini_adds_source_links_and_records_company_and_market_events(tm
     requests = []
 
     def gemini(request):
-        assert request.url.path == "/v1beta/models/gemini-4-carbon:generateContent"
+        assert request.url.path == "/v1beta/models/gemini-4-hydrogen:generateContent"
         assert request.headers["x-goog-api-key"] == "test-key"
         assert not request.url.query
         payload = json.loads(request.content)
@@ -35,6 +35,8 @@ async def test_gemini_adds_source_links_and_records_company_and_market_events(tm
         if "candidate_ids" in payload["generationConfig"]["responseJsonSchema"]["properties"]:
             result = {"candidate_ids": [entry["id"] for entry in data]}
         else:
+            company_schema = payload["generationConfig"]["responseJsonSchema"]["$defs"]["CompanyMention"]["properties"]
+            assert {"direction", "impact_score", "confidence", "risks", "horizon"} <= company_schema.keys()
             result = {"analyses": [{
                 "candidate_id": entry["id"], "event_type": "macro" if entry["title"] == macro_title else "guidance",
                 "relevance": "high", "why_it_matters": "The announcement changes expectations for the outlook.",
@@ -43,6 +45,8 @@ async def test_gemini_adds_source_links_and_records_company_and_market_events(tm
                     "name": "Microsoft", "relationship": "direct",
                     "evidence": {"field": "title", "excerpt": entry["title"]},
                     "connection": "Higher guidance raises the company's published sales outlook.",
+                    "direction": "positive", "impact_score": 1, "confidence": "medium",
+                    "risks": [], "horizon": "medium_term",
                 }],
             } for entry in data]}
         return httpx.Response(200, json={"candidates": [{"content": {"parts": [
@@ -56,18 +60,22 @@ async def test_gemini_adds_source_links_and_records_company_and_market_events(tm
     try:
         first = await service.get_feed("business")
         assert first["refresh_interval_seconds"] == 60
-        await service._analysis_task
+        await service._analyses["business"].task
         ready = await service.get_feed("business")
         macro, company = ready["articles"]
         assert macro["analysis"]["alert_eligible"] and macro["tickers"] == []
         assert company["analysis"]["companies"][0]["connection"].startswith("Higher guidance")
         assert company["analysis"]["alert_eligible"] and company["tickers"] == ["MSFT"]
+        impact = company["analysis"]["companies"][0]
+        assert (impact["direction"], impact["impact_score"], impact["confidence"], impact["horizon"]) == (
+            "positive", 1, "medium", "medium_term")
+        assert company["curation_status"] == "selected"
         assert len(requests) == 2
         with store.engine.connect() as connection:
             rows = connection.execute(select(events)).mappings().all()
-        assert len(rows) == 2 and {row["model"] for row in rows} == {"gemini-4-carbon"}
+        assert len(rows) == 2 and {row["model"] for row in rows} == {"gemini-4-hydrogen"}
         assert all(row["first_seen_at"] <= row["analyzed_at"] for row in rows)
-        store.record([(company, company["analysis"])], "gemini-4-carbon")
+        store.record([(company, company["analysis"])], "gemini-4-hydrogen")
         with store.engine.connect() as connection:
             assert len(connection.execute(select(events.c.event_id)).all()) == 2
     finally:
@@ -90,7 +98,7 @@ async def test_gemini_account_error_preserves_headlines_and_backs_off(status_cod
     service = LiveFeedService(fetcher, analyzer=analyzer, transport=listings)
     try:
         await service.get_feed("business")
-        await service._analysis_task
+        await service._analyses["business"].task
         result = await service.get_feed("business")
         assert result["analysis_status"] == "unavailable"
         assert message in result["analysis_message"]

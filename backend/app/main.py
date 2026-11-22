@@ -17,6 +17,7 @@ from app.services.cache import CacheService
 from app.services.live_feed import LiveFeedService
 from app.services.market_analyzer import GeminiMarketAnalyzer, MarketAnalyzer
 from app.services.market_event_store import MarketEventStore
+from app.services.stock_research import StockResearchService
 from app.models.schemas import HealthResponse
 
 # Configure logging
@@ -68,6 +69,8 @@ async def lifespan(app: FastAPI):
     app.state.cache = CacheService(
         redis_url=settings.REDIS_URL,
     )
+    app.state.stock_research = StockResearchService(api_key=settings.FINNHUB_API_KEY, assessor=analyzer)
+    app.state.market_events = event_store
 
     logger.info("All services initialized.")
     try:

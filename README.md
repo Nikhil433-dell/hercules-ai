@@ -1,211 +1,72 @@
-# Hercules — Market News Desktop App
+# Hercules
 
-Hercules starts quietly in the macOS menu bar. Click **H** to open current news
-with category filters. The main panel stays anchored and can be resized from
-its edges; reopening preserves its size for the session. New stories appear in
-a compact 250 × 160px popup. Click a popup or headline for a separate article view
-with stock quotes and a link to the original source. The small popup stays for
-10 seconds with a countdown, even when you click elsewhere. The larger feed
-and article windows hide when you click outside them. Background checks
-continue while the windows are hidden.
+Hercules is a macOS menu-bar widget for analysts following company news. Open **H** to scan a feed, trace a story to the companies it mentions, and see the evidence behind a possible business impact. For example, a supplier cutting its outlook may matter to a customer. Hercules shows the customer link when the source describes that relationship and keeps the original article one click away.
+
+[Project website](https://nikhil433-dell.github.io/hercules-ai/) · [Download desktop preview 1.0.2](https://github.com/Nikhil433-dell/hercules-ai/releases/tag/preview-1.0.2) · [Roadmap](docs/ROADMAP.md)
+
+**Version guide.** Preview 1.0.2 provides the downloadable news widget. Run the desktop and backend from this branch together to use the current company dossier, model-led curation and stock-thesis features. The screenshots and walkthrough on the website illustrate the preview with sample stories.
+
+## An analyst’s day with Hercules
+
+| Moment | Action | What you get |
+| --- | --- | --- |
+| Morning scan | Open **H**, choose Finance or another category, and review the selected stories. | The event, publisher, publication time and original source help you prioritize reading. The selected category refreshes every minute while the desktop runs. |
+| A headline arrives | Click its ten-second pop-up and inspect **Companies and potential stock effects**. | Direct and indirect exposure, a source excerpt, possible impact, confidence and risks. A company name can appear even when its U.S. ticker cannot be verified. Verified tickers link to Yahoo Finance. |
+| Prepare for a company call | Choose **Company news dossier** under a verified company. | Review reported figures in context, earlier articles, recurring catalysts and documented company links. Compare the past 30 days of saved coverage with the preceding 150 days and see the sample counts. |
+| Challenge a thesis | Choose **Check stock thesis**. | The model weighs the article against adjusted daily price trends and available fundamentals such as growth, profitability, leverage and valuation. Inspect the factors, dates and missing evidence before deciding what to investigate. |
+
+## How the research works
+
+The FastAPI service fetches headlines from configured news providers. Finance can combine Finnhub with general news coverage. The desktop also checks Finance while another category is open and alerts are enabled. All eight categories support curation. The first batch sets a quiet baseline. The compact pop-up follows the current display and opens a separate article window.
+
+Gemini 4 Hydrogen or a configured local Ollama model shortlists stories, interprets supplied article text and identifies companies. Hercules checks quoted excerpts against that text and resolves names against supported listings. Product brands and private or overseas companies can therefore appear by name without a stock link. News and quote availability depend on the providers, their coverage and their quotas. If analysis is unavailable, headlines can still appear.
+
+The dossier uses deduplicated events saved in your configured database. Its coverage comparison needs at least three observations in each period. Analysts can inspect the original articles behind a pattern. Changes in collection frequency can change the counts. The stock-thesis view calculates moving averages, RSI, 20-session return, volatility and drawdown from Yahoo daily history and retrieves basic financials from Finnhub. The model cites supplied evidence fields. Incomplete or stale inputs produce **More data needed**. Saved events provide research history. The current model uses pretrained inference, and the project has no validated predictive return record.
 
 ## Setup
 
-Download the [macOS preview](https://github.com/Nikhil433-dell/hercules-ai/releases/tag/preview-1.0.2),
-open the DMG, and drag Hercules to Applications. Launch it, then click **H** in
-the menu bar to open the news feed. The app connects to the hosted backend at
-`https://hercules-ai-red.vercel.app` automatically. An internet connection is
-required; you do not need to run a backend or supply API keys to use the app.
-The preview is ad-hoc signed and not notarized; see the release notes for
-installation details.
+For the current source version, use macOS, Node.js 22, Python 3.11+, and the following commands from the repository root:
 
-To run the desktop from source:
-
-```bash
-cd desktop
-npm install
-npm start
+```sh
+python3 -m venv backend/venv
+backend/venv/bin/pip install -r backend/requirements.txt
+# On a fresh checkout with no backend/.env yet:
+cp -n backend/.env.example backend/.env
+npm --prefix desktop ci
 ```
 
-`npm start` uses the same hosted backend and launches Electron hidden. The
-backend address is stored in `desktop/runtime-config.json`; the packaged app
-uses that configuration too. Set `HERCULES_API_URL` in Electron's launch
-environment to override it with another trusted backend.
+Set these values in `backend/.env`. Keep provider credentials on the backend.
 
-### Optional: run your own backend
+| Setting | Purpose |
+| --- | --- |
+| `GNEWS_API_KEY` or `NEWSAPI_KEY` | General and category news. |
+| `FINNHUB_API_KEY` | Finance news, quotes and company fundamentals. |
+| `MARKET_ANALYSIS_PROVIDER=gemini`, `GEMINI_API_KEY` | Gemini article and stock analysis. `GEMINI_MODEL` defaults to `gemini-4-hydrogen`. |
+| `MARKET_ANALYSIS_PROVIDER=ollama` | Alternative local inference. Start Ollama, pull the model named by `OLLAMA_MODEL` (default `llama3.1:8b`), and use this provider when launching. |
+| `DATABASE_URL` | Defaults to local SQLite. Use persistent Postgres for hosted event history. `MARKET_EVENT_HISTORY_ENABLED=false` disables storage. |
 
-Developers can self-host the backend and keep provider credentials on their own
-server. This is optional for users of the default desktop app.
-
-```bash
-cd backend
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env  # Only if you do not already have .env
+```sh
+MARKET_ANALYSIS_PROVIDER=gemini npm --prefix desktop run start:local
 ```
 
-Edit `backend/.env` locally. Use GNews or NewsAPI for general headlines. Add
-`FINNHUB_API_KEY` for finance stories with source-provided ticker associations
-and stock quotes. Keys stay in the backend; the desktop does not receive them.
-The feed does not require OpenAI, Redis, or Docker.
+Click **H** after launch. Restart an older backend before testing a new checkout. `start:local` starts or reuses a compatible local backend. `npm --prefix desktop start` uses the hosted address in `desktop/runtime-config.json`. OpenAI powers the separate `/news/summary` endpoint. The widget’s `/news/feed` flow can run without an OpenAI key or Redis.
 
-Start the app and local backend together:
+## Project map and checks
 
-```bash
-cd desktop
-npm run start:local
+| Location | Role |
+| --- | --- |
+| `backend/app/services/` | News ingestion, model analysis, ticker verification, event history, company dossiers and stock research. |
+| `desktop/` | Electron menu bar, notification windows and React article views. |
+| `website/` | Static GitHub Pages showcase, screenshots and walkthrough. |
+| `docs/` | [Architecture review](docs/NEWS_ANALYSIS_INTEGRATION.md), [analyst roadmap](docs/ROADMAP.md), [acceptance checks](docs/MILESTONE_1.md), [hosting](docs/HOSTING.md) and [macOS releases](docs/RELEASING.md). |
+
+```sh
+(cd backend && venv/bin/pytest tests -q)
+npm --prefix desktop run typecheck
+npm --prefix desktop run lint
+npm --prefix desktop test
 ```
 
-`start:local` normally uses `http://127.0.0.1:8000`, reusing a compatible local backend or
-starting one with the project's Python virtual environment. Quit the desktop
-or stop this command to stop the backend it started. To manage the backend
-separately:
+## Future scope
 
-```bash
-cd backend
-MARKET_ANALYSIS_PROVIDER=ollama ./venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
-```
-
-Then launch Electron with the local URL explicitly:
-
-```bash
-cd desktop
-HERCULES_API_URL=http://127.0.0.1:8000 npm run start:desktop
-```
-
-### Gemini 4 Carbon and market event history
-
-Set `GEMINI_API_KEY` in `backend/.env` using a paid Gemini API project with
-Carbon access. Then restart the local app:
-
-```bash
-cd desktop
-MARKET_ANALYSIS_PROVIDER=gemini npm run start:local
-```
-
-The key is read by the backend. The model defaults to `gemini-4-carbon`.
-Gemini processes only the headline, description, and available article text
-needed for analysis.
-
-Validated background analyses are saved in the `market_news_events` table.
-Each event stores its source, publication time, first-seen and analysis times,
-verified companies, and model. Local history uses `backend/hercules.db` by
-default. For hosted history, set `DATABASE_URL` to a Postgres connection
-string in the backend environment. `MARKET_EVENT_HISTORY_ENABLED=false`
-turns off event storage.
-
-### Use Ollama locally
-
-Start the Ollama app on your Mac or run `ollama serve` in a separate terminal.
-Then install the model and launch Hercules from the repository root:
-
-```bash
-ollama pull llama3.1:8b
-cd desktop
-MARKET_ANALYSIS_PROVIDER=ollama npm run start:local
-```
-
-`start:local` defaults to no LLM calls. To use the optional news analyzer, run
-`MARKET_ANALYSIS_PROVIDER=ollama npm run start:local`, including when a Gemini key is present in
-`backend/.env`. If the backend on port 8000 uses another provider, the launcher
-tries port 8010. An explicit `MARKET_ANALYSIS_PROVIDER` in the launch command
-selects another provider.
-Use `OLLAMA_BASE_URL` or `OLLAMA_MODEL` in `backend/.env` to configure
-Ollama. Use `MARKET_ANALYSIS_PROVIDER=off` to turn analysis off.
-
-Open the H menu-bar widget and select Finance. Headlines load while the model
-shortlists and analyzes stories in the background. The next refresh shows
-available analysis, including the event and evidence for each
-verified company. This version reads the headline, description, and any article
-text supplied by the news provider. Hercules keeps provider tags and adds
-verified company mentions from the supplied text. Direct and indirect exposure
-labels and possible links appear beside verified matches. The compact popup
-shows the first available company connection. A ticker stays clickable
-even when Finnhub cannot return a price.
-Opening a Finance story that missed the background shortlist analyzes it on
-demand. Broad market stories can have an explanation without a company ticker.
-
-The first Finance response sets a quiet baseline. Later, fresh, significant
-company events and broad market news can trigger one popup per check.
-Choose **News popups → Off** from the H menu to review the feed quietly.
-If the analysis provider is unavailable,
-the headlines still load and market alerts pause.
-
-## Live news and prices
-
-The desktop reads `/news/feed?category=business` and checks every 60 seconds.
-The backend caches news and quotes for 60 seconds to limit provider requests.
-Provider plan limits and publication delays still apply. Finance establishes
-its own alert baseline independent of the category shown in the widget.
-Alert history persists across restarts. There is no demo mode or synthetic
-market data. Failed refreshes show an error and preserve existing headlines.
-
-Without local AI, Finance uses Finnhub when configured, with GNews/NewsAPI as
-fallback. With local AI enabled, Finance can consider both sets of candidates.
-Other categories use the general news providers. Source-provided tickers take
-priority. A conservative resolver also recognizes explicit exchange/cashtag
-symbols and a limited set of major company names in headlines and descriptions.
-It does not cover every public company. Current GNews/NewsAPI adapters usually
-supply no tickers, so this matching step connects their stories to stocks.
-Quotes show their observation time; absent or failed quotes are marked
-unavailable. A missing currency is not assumed to be USD. News delivery works
-when quotes are unavailable.
-
-If prices do not appear, the desktop shows a price-connection notice and
-per-stock error reasons. Provider availability, quotas, and company matching can
-leave a story without a quote; Hercules never fabricates a price. Users of the
-hosted service do not need their own quote-provider key. If you self-host, add
-`FINNHUB_API_KEY` to your backend's environment and restart it; a news API key
-alone does not provide stock prices.
-
-## Development
-
-```bash
-cd desktop
-npm run typecheck
-npm run lint
-npm test
-npm run build
-```
-
-`build` creates a local Electron package, without publishing. Popup expiration
-runs in Electron's main process; each new story gets a fresh 10 seconds after
-the popup becomes visible. Opening the article or dismissing the popup cancels
-its timer. Feed and article windows hide on focus loss and Escape.
-
-Backend tests:
-
-```bash
-cd backend
-./venv/bin/pytest tests -q
-```
-
-See [the acceptance checklist](docs/MILESTONE_1.md) and
-[the broader roadmap](docs/BLUEPRINT.md). Earnings calendars and watchlists
-remain future work.
-
-
-## Website and macOS downloads
-
-- Showcase: https://nikhil433-dell.github.io/hercules-ai/
-- Developer preview: https://github.com/Nikhil433-dell/hercules-ai/releases/tag/preview-1.0.2
-- Build a DMG: `cd desktop && npm ci && npm run make:dmg`
-
-The downloadable DMGs support Apple silicon and Intel Macs and contain the desktop
-only and connect to the hosted API automatically. Their signature is ad-hoc,
-without Apple Developer ID or notarization. The release workflow builds both architectures. See [release instructions](docs/RELEASING.md) and
-[hosting options](docs/HOSTING.md).
-
-The website lives in `website/` and deploys through GitHub Actions. Its screenshots
-and 18-second walkthrough render the actual React components using clearly labeled
-sample content and prices. To regenerate them on macOS:
-
-```bash
-cd desktop
-node showcase/build.cjs
-./node_modules/.bin/electron showcase/render.cjs
-```
-
-These preview fixtures are isolated from the production app and do not contact news
-providers or include credentials.
+The first proposed extension pairs news with dated SEC disclosures. Subsequent work would track management commitments against later evidence and measure post-event returns against a benchmark. Watchlists and an earnings calendar could organize this work around an analyst’s coverage universe. Each proposal and its data requirements are described in the [roadmap](docs/ROADMAP.md).

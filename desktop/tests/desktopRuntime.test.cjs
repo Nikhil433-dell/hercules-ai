@@ -82,6 +82,14 @@ async function launch(deferReady = false, environment = {}, fetchResponse = asyn
       if (name === 'electron') return electron;
       if (name === 'electron-squirrel-startup') return false;
       if (name === './services/newsMonitor') return { NewsMonitor: Monitor, normalizeHeadlines: (payload) => payload.articles };
+      if (name === './shared/research') {
+        const parsed = { exports: {} };
+        const code = ts.transpileModule(fs.readFileSync(path.resolve(__dirname, '../src/shared/research.ts'), 'utf8'), {
+          compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+        }).outputText;
+        vm.runInNewContext(code, { exports: parsed.exports, URL, Date });
+        return parsed.exports;
+      }
       return require(name);
     },
     exports: {}, process: { platform: 'darwin', env: environment }, console,
@@ -94,6 +102,32 @@ async function launch(deferReady = false, environment = {}, fetchResponse = asyn
 }
 const story = { id: 'actual-story', title: 'Actual company news', url: 'https://example.com/story', tickers: [], quotes: [] };
 
+test('stock research only accepts a company in the open analyzed story and parses market evidence', async () => {
+  const runtime = await launch(false, { HERCULES_API_URL: 'http://127.0.0.1:8000' }, () => ({
+    symbol: 'MSFT', status: 'partial', stance: 'insufficient_data',
+    assessed_at: '2026-11-19T18:00:00Z', quote_as_of: '2026-11-18T18:00:00Z',
+    technical: { status: 'ready', metrics: { sma20: 100, rsi14: NaN }, signals: [{ explanation: 'Trend is positive.' }] },
+    fundamental: { status: 'partial', metrics: { pe_ttm: 25 }, signals: [{ explanation: 'Metric date unknown.' }] },
+    sources: [{ url: 'javascript:alert(1)' }, { name: 'Yahoo', url: 'https://finance.yahoo.com/quote/MSFT/' }],
+    history: { observations: 2, event_counts: { guidance: 2 }, note: 'Not predictive accuracy.' },
+  }));
+  runtime.state.articles = [{ ...story, category: 'business', analysis: { companies: [{ symbol: 'MSFT' }] } }];
+  runtime.events.emit('open-article', { sender: null }, story.id);
+  await new Promise(setImmediate);
+  const handler = runtime.handlers.get('request-stock-research');
+  const event = { sender: runtime.windows.at(-1).webContents };
+  assert.ok((await handler(event, { url: story.url, symbol: 'NVDA' })).error);
+  assert.ok((await handler(event, { url: 'https://unknown.example', symbol: 'MSFT' })).error);
+  assert.equal(runtime.requests.length, 0);
+  const { research } = await handler(event, { url: story.url, symbol: 'MSFT' });
+  assert.equal(research.stance, 'insufficient_data');
+  assert.equal(research.technical.signals[0], 'Trend is positive.');
+  assert.equal(research.technical.metrics.rsi14, undefined);
+  assert.equal(research.sources.length, 1);
+  assert.equal(research.history.eventCounts.guidance, 2);
+  assert.equal(runtime.requests[0].url, 'http://127.0.0.1:8000/news/research');
+});
+
 test('packaged app defaults to the hosted API and supports an explicit local override', async () => {
   const hosted = await launch();
   await hosted.monitor.dependencies.fetchHeadlines('business');
@@ -103,8 +137,8 @@ test('packaged app defaults to the hosted API and supports an explicit local ove
   assert.equal(local.requestedURLs[0], 'http://127.0.0.1:8000/news/feed?category=technology');
 });
 
-test('opening an unanalyzed local Finance story requests and displays its analysis', async () => {
-  const article = { ...story, category: 'business' };
+test('opening an unanalyzed local Technology story requests and displays its analysis', async () => {
+  const article = { ...story, category: 'technology' };
   const analyzed = { ...article, analysis: { eventType: 'macro', companies: [] } };
   let complete;
   const result = new Promise((resolve) => { complete = resolve; });
@@ -384,4 +418,23 @@ test('the panel opens directly to news controls without simulator navigation', (
   assert.match(markup, /Latest stories/);
   assert.match(markup, /Checking for news/);
   assert.doesNotMatch(markup, /tablist|Paper trading/);
+});
+
+test('article dossier requests verified news context independently of stock research', async () => {
+  const dossier = {
+    symbol: 'MSFT', anchor: null, impact_channel: 'demand', excerpt: 'Sales grew by 12%.',
+    figures: ['12%'], history_available: true, recent_count: 0, baseline_count: 0,
+    negative_share_change: null, recurring: [], connections: [], timeline: [],
+  };
+  const runtime = await launch(false, { HERCULES_API_URL: 'http://127.0.0.1:8000' }, () => dossier);
+  runtime.state.articles = [{ ...story, analysis: { companies: [{ symbol: 'MSFT' }] } }];
+  runtime.events.emit('open-article', { sender: null }, story.id);
+  await new Promise(setImmediate);
+  const handler = runtime.handlers.get('request-company-dossier');
+  const event = { sender: runtime.windows.at(-1).webContents };
+  assert.ok((await handler(event, { url: story.url, symbol: 'SPY' })).error);
+  const response = await handler(event, { url: story.url, symbol: 'MSFT' });
+  assert.equal(response.dossier.figures[0], '12%');
+  assert.equal(runtime.requests.length, 1);
+  assert.equal(runtime.requests[0].url, 'http://127.0.0.1:8000/news/dossier');
 });

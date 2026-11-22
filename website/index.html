@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark">
   <meta name="theme-color" content="#161718">
-  <meta name="description" content="Hercules is a small macOS menu-bar companion for financial news. Catch a headline, check the related stock, and open the original story.">
-  <title>Hercules — Market news, within reach.</title>
+  <meta name="description" content="Follow market news from the macOS menu bar. Research company exposure, read earlier coverage, and check a stock thesis against financial data.">
+  <title>Hercules — Company news for analysts</title>
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="styles.css">
   <script src="script.js" defer></script>
@@ -25,20 +25,20 @@
     <main id="main">
       <section class="hero" aria-labelledby="hero-title">
         <div class="hero-copy">
-          <p class="eyebrow"><span class="status-dot" aria-hidden="true"></span>A quiet companion for macOS</p>
-          <h1 id="hero-title">Market news.<br>At the edge<br>of your day.</h1>
-          <p class="hero-description">A small place for the stories that move markets. Catch a headline, check the related stock, and go straight to the source.</p>
+          <p class="eyebrow"><span class="status-dot" aria-hidden="true"></span>Market research for macOS</p>
+          <h1 id="hero-title">The companies<br>behind the news.</h1>
+          <p class="hero-description">A guidance cut lands in your feed. Which companies are exposed? Has the outlook changed before? Follow the source, read the company’s news history, and check the financial evidence from your menu bar.</p>
           <div class="hero-actions">
-            <a class="button button-primary" href="https://github.com/Nikhil433-dell/hercules-ai/releases/download/preview-1.0.2/Hercules-1.0.2-arm64.dmg"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2v10m-4-4 4 4 4-4M4 13v4h12v-4"/></svg>Download for Apple silicon</a>
-            <a class="text-link" href="https://github.com/Nikhil433-dell/hercules-ai">Explore the source <span aria-hidden="true">↗</span></a>
+            <a class="button button-primary" href="https://github.com/Nikhil433-dell/hercules-ai/releases/download/preview-1.0.2/Hercules-1.0.2-arm64.dmg"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2v10m-4-4 4 4 4-4M4 13v4h12v-4"/></svg>Download preview 1.0.2</a>
+            <a class="text-link" href="https://github.com/Nikhil433-dell/hercules-ai#setup">Run the analyst build <span aria-hidden="true">↗</span></a>
           </div>
-          <p class="download-note">Apple silicon · Developer preview · Hosted news connection included</p>
+          <p class="download-note">Apple silicon DMG · Company dossiers and stock research are available in the source build.</p>
           <a class="scroll-link" href="#a-closer-look">A closer look <span aria-hidden="true">↓</span></a>
         </div>
         <figure class="hero-visual">
           <div class="preview-label"><span class="label-number">01</span><span>The feed, just a click away</span></div>
           <img class="feed-preview" src="assets/feed-preview.png" alt="Hercules dark news panel with finance categories, a live status, and sample headlines with stock quotes." width="320" height="680" fetchpriority="high">
-          <figcaption>Interface previews · sample content</figcaption>
+          <figcaption>Desktop preview 1.0.2 · sample content</figcaption>
         </figure>
       </section>
 
@@ -62,21 +62,24 @@
         </div>
       </section>
 
-      <section class="details" aria-label="How Hercules works">
-        <div class="detail"><span class="detail-index">01 / FOLLOW</span><h3>News on your terms.</h3><p>Checks your connected news providers every 60 seconds. Start with finance and business, then switch categories when your curiosity takes you elsewhere.</p></div>
-        <div class="detail"><span class="detail-index">02 / CONNECT</span><h3>The stock behind the story.</h3><p>Related tickers sit beside quotes and their timestamps. Prices come through the hosted service and may be delayed or unavailable. Open a ticker to see more.</p></div>
-        <div class="detail"><span class="detail-index">03 / READ</span><h3>Always a way to the source.</h3><p>Skim the publisher’s description in a separate view, then open the original story in your browser. Your feed is waiting back in the menu bar.</p></div>
+      <section id="research" class="walkthrough" aria-labelledby="research-title">
+        <div class="walkthrough-heading"><div><p class="eyebrow">Current source build</p><h2 id="research-title">An analyst’s day with Hercules</h2></div></div>
+        <div class="details research-grid">
+          <div class="detail"><span class="detail-index">Morning scan</span><h3>Prioritize the reading list</h3><p>Review model-selected news across eight categories. Inspect the source excerpt behind a direct or indirect company link, then open the publisher’s article.</p></div>
+          <div class="detail"><span class="detail-index">Call preparation</span><h3>Open the company dossier</h3><p>Compare the last 30 days of saved coverage with the preceding 150. See reported figures, recurring catalysts and earlier stories documenting a customer or supplier relationship.</p></div>
+          <div class="detail"><span class="detail-index">Research note</span><h3>Challenge a stock thesis</h3><p>Check a story against price trends, profitability, leverage and valuation. The assessment shows its evidence and flags missing or stale inputs before you draw a conclusion.</p></div>
+        </div>
       </section>
 
       <section id="walkthrough" class="walkthrough" aria-labelledby="walkthrough-title">
         <div class="walkthrough-heading"><div><p class="eyebrow">See the flow</p><h2 id="walkthrough-title">From headline to source.</h2></div><span class="film-label">HERCULES / INTERFACE WALKTHROUGH</span></div>
         <div class="video-stage"><video controls playsinline preload="metadata" poster="assets/walkthrough-poster.png" aria-label="Hercules interface walkthrough with sample content"><source src="assets/walkthrough.mp4" type="video/mp4">Your browser does not support embedded video. <a href="assets/walkthrough.mp4">Download the walkthrough.</a></video></div>
-        <div class="video-caption"><p>A short interface walkthrough using sample content.</p><a href="assets/walkthrough.mp4" download>Download video <span aria-hidden="true">↓</span></a></div>
+        <div class="video-caption"><p>Desktop preview 1.0.2 · sample headlines and quotes.</p><a href="assets/walkthrough.mp4" download>Download video <span aria-hidden="true">↓</span></a></div>
       </section>
 
       <section class="getting-started" aria-labelledby="setup-title">
-        <div><p class="eyebrow">A project in progress</p><h2 id="setup-title">Small app.<br>Open beginnings.</h2><p>Hercules is an early personal project, built with Electron, React, and a Python backend. The code is open to explore, run, and improve.</p></div>
-        <div class="setup-copy"><h3>Before you download</h3><p>Download the desktop preview and open it from Applications. It connects to the hosted Hercules service automatically—no backend setup or personal API keys needed. An internet connection is required.</p><p class="setup-note">The macOS preview is ad-hoc signed and not notarized. Release availability and installation details are listed on GitHub.</p><div class="setup-actions"><a class="text-link" href="https://github.com/Nikhil433-dell/hercules-ai#setup">Read the setup guide <span aria-hidden="true">↗</span></a><a class="text-link" href="https://github.com/Nikhil433-dell/hercules-ai/releases/tag/preview-1.0.2">View releases <span aria-hidden="true">↗</span></a></div></div>
+        <div><p class="eyebrow">Proposed features</p><h2 id="setup-title">Where the research goes next</h2><p>Pair headlines with SEC filings, follow management commitments to their outcomes, and measure how a stock performed against its benchmark after a catalyst.</p><div class="setup-actions"><a class="text-link" href="https://github.com/Nikhil433-dell/hercules-ai/blob/master/docs/ROADMAP.md">Read the analyst roadmap ↗</a></div></div>
+        <div class="setup-copy"><h3>Choose your build</h3><p>For company dossiers and stock research, follow the setup guide to run the desktop and backend together. The 1.0.2 DMG gives you the earlier news-and-quotes widget connected to the hosted API.</p><p class="setup-note">The macOS preview is ad-hoc signed and not notarized. Release availability and installation details are listed on GitHub.</p><div class="setup-actions"><a class="text-link" href="https://github.com/Nikhil433-dell/hercules-ai#setup">Read the setup guide <span aria-hidden="true">↗</span></a><a class="text-link" href="https://github.com/Nikhil433-dell/hercules-ai/releases/tag/preview-1.0.2">View releases <span aria-hidden="true">↗</span></a></div></div>
       </section>
     </main>
     <footer class="site-footer"><a class="wordmark" href="#" aria-label="Hercules back to top"><span class="wordmark-h">H</span><span>ercules</span></a><p>A little closer to the news.</p><a href="https://github.com/Nikhil433-dell/hercules-ai">Built in the open <span aria-hidden="true">↗</span></a></footer>

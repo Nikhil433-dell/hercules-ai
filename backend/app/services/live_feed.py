@@ -2,6 +2,7 @@
 
 import asyncio
 from copy import deepcopy
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from hashlib import sha256
 import logging
@@ -58,6 +59,16 @@ def canonical_article_url(value):
         return None
 
 
+@dataclass
+class CategoryAnalysis:
+    task: object = None
+    key: object = None
+    results: dict = field(default_factory=dict)
+    unselected: set = field(default_factory=set)
+    status: str = "pending"
+    retry_at: float = 0
+
+
 class LiveFeedService:
     TTL = 60
     MAX_SYMBOLS = 10
@@ -73,11 +84,10 @@ class LiveFeedService:
         self._analyzer = analyzer
         self._event_store = event_store
         self._first_seen = {}
-        self._analysis_task = None
-        self._analysis_key = None
-        self._analysis_results = {}
-        self._analysis_status = "pending" if analyzer is not None else "disabled"
-        self._analysis_retry_at = 0
+        self._analyses = {category.value: CategoryAnalysis(status="pending" if analyzer else "disabled")
+                          for category in CategoryEnum}
+        # Serialize model calls so status and retry state cannot leak between categories.
+        self._analysis_lock = asyncio.Lock()
         self._directory = CompanyDirectory()
         self._directory_refresh_at = 0
         # One batch at a time avoids duplicate quote requests across category refreshes.
@@ -195,10 +205,14 @@ class LiveFeedService:
 
     def _verified_analysis(self, article, analysis):
         companies = {}
+        unresolved = []
         for company in analysis["companies"]:
             symbol = self._directory.resolve(company["name"], company["evidence"])
             if symbol and (symbol not in companies or company["relationship"] == "direct"):
                 companies[symbol] = {**company, "symbol": symbol}
+            elif not symbol:
+                unresolved.append({**company, "listing_status": "unverified",
+                                   "listing_message": "Company identified from the article. No ticker verified in the supported U.S. listings; it may be private, a brand, or listed elsewhere."})
         direct = sorted(s for s, company in companies.items() if company["relationship"] == "direct")
         symbols = direct or sorted(companies)
         kind = analysis["event_type"]
@@ -214,6 +228,7 @@ class LiveFeedService:
         return {
             **analysis,
             "companies": list(companies.values()),
+            "unlisted_companies": unresolved,
             "event_id": sha256(event_key.encode()).hexdigest(),
             "alert_eligible": bool(
                 date and analysis["relevance"] == "high"
@@ -221,43 +236,51 @@ class LiveFeedService:
             ),
         }
 
-    async def _run_analysis(self, key, articles):
-        self._analysis_status = "pending"
+    async def _run_analysis(self, state, key, articles):
+        state.status = "pending"
         try:
-            analyzed, _ = await asyncio.gather(
-                asyncio.wait_for(self._analyzer.analyze(articles), timeout=150),
-                self._refresh_directory(),
-            )
-            if getattr(self._analyzer, "last_status", "ready") == "unavailable":
-                raise FeedUnavailable("Market analysis unavailable.")
+            async with self._analysis_lock:
+                analyzed, _ = await asyncio.gather(
+                    asyncio.wait_for(self._analyzer.analyze(articles), timeout=150),
+                    self._refresh_directory(),
+                )
+                if getattr(self._analyzer, "last_status", "ready") == "unavailable":
+                    raise FeedUnavailable("Market analysis unavailable.")
             results = {
                 self._analysis_identity(article): self._verified_analysis(article, article["analysis"])
                 for article in analyzed if "analysis" in article
             }
         except Exception as error:
             logger.warning("Local market analysis unavailable (%s).", type(error).__name__)
-            self._analysis_status = "unavailable"
-            self._analysis_retry_at = self.clock() + self.TTL
+            state.status = "unavailable"
+            state.retry_at = self.clock() + self.TTL
         else:
-            self._analysis_results = results
-            self._analysis_status = "ready"
+            state.results = {**{identity: analysis for identity, analysis in state.results.items()
+                                        if identity in key}, **results}
+            state.unselected = {self._analysis_identity(article) for article in analyzed
+                                if article.get("analysis_selection") == "not_selected"
+                                and self._analysis_identity(article) not in state.results}
+            state.status = "ready"
             if self._event_store and results:
                 observations = [(article, results[identity]) for article, identity in zip(articles, key) if identity in results]
                 try:
                     await asyncio.to_thread(self._event_store.record, observations, self._analyzer.model)
                 except Exception as error:
                     logger.warning("Could not record market events (%s).", type(error).__name__)
-        self._analysis_key = key
+        state.key = key
 
-    def _attach_analysis(self, articles):
+    def _attach_analysis(self, articles, category):
+        state = self._analyses[category]
         key = tuple(self._analysis_identity(article) for article in articles)
-        should_retry = self._analysis_status == "unavailable" and self.clock() >= self._analysis_retry_at
-        if (self._analysis_task is None or self._analysis_task.done()) and (key != self._analysis_key or should_retry):
-            self._analysis_status = "pending"
-            self._analysis_task = asyncio.create_task(self._run_analysis(key, deepcopy(articles)))
+        should_retry = state.status == "unavailable" and self.clock() >= state.retry_at
+        if (state.task is None or state.task.done()) and (key != state.key or should_retry):
+            state.status = "pending"
+            state.task = asyncio.create_task(self._run_analysis(state, key, deepcopy(articles)))
         for identity, article in zip(key, articles):
-            self._attach_tickers(article, self._analysis_results.get(identity))
-        return self._analysis_status
+            self._attach_tickers(article, state.results.get(identity))
+            if identity in state.unselected:
+                article["analysis_selection"] = "not_selected"
+        return state.status
 
     def _attach_tickers(self, article, analysis):
         affected = []
@@ -273,13 +296,11 @@ class LiveFeedService:
         if self._analyzer is None:
             return {"analysis_status": "disabled", "articles": []}
         # Only analyze articles the backend already obtained from its providers.
-        cached = self._feeds.get("business")
-        if not cached or not isinstance(cached[1], list):
-            return {"analysis_status": "expired", "articles": []}
-        article = next((deepcopy(item) for item in cached[1] if item["url"] == url), None)
+        article = self._cached_article(url)
         if article is None:
             return {"analysis_status": "expired", "articles": []}
-        analysis = self._analysis_results.get(self._analysis_identity(article))
+        state = self._analyses[article["category"]]
+        analysis = state.results.get(self._analysis_identity(article))
         if analysis is None:
             analyzed, _ = await asyncio.gather(
                 self._analyzer.analyze([article], shortlist=False), self._refresh_directory(),
@@ -289,14 +310,48 @@ class LiveFeedService:
                 return {"analysis_status": "unavailable", "articles": []}
             analysis = self._verified_analysis(article, raw)
         self._attach_tickers(article, analysis)
+        state.results[self._analysis_identity(article)] = analysis
+        state.unselected.discard(self._analysis_identity(article))
+        if self._event_store:
+            try:
+                await asyncio.to_thread(self._event_store.record, [(article, analysis)], self._analyzer.model)
+            except Exception as error:
+                logger.warning("Could not record market event (%s).", type(error).__name__)
         article.pop("content", None)
         await self._attach_quotes([article])
         return {"analysis_status": "ready", "articles": [article]}
 
+    def research_context(self, url, symbol):
+        """Only provider articles and verified analysis may supply a research thesis."""
+        article = self._cached_article(url)
+        if article is None:
+            return None
+        state = self._analyses[article["category"]]
+        analysis = state.results.get(self._analysis_identity(article))
+        if not analysis:
+            return None
+        company = next((item for item in analysis["companies"] if item["symbol"] == symbol), None)
+        if company is None:
+            return None
+        return {**company, "relevance": analysis["relevance"], "event_id": analysis["event_id"],
+                "title": article["title"], "description": article.get("description", ""),
+                "content": article.get("content", ""),
+                "event_type": analysis["event_type"], "published_at": article.get("published_at"),
+                "evidence_scope": analysis.get("evidence_scope")}
+
+    def _cached_article(self, url):
+        for _, articles in self._feeds.values():
+            if isinstance(articles, list):
+                for article in articles:
+                    if article["url"] == url:
+                        return deepcopy(article)
+        return None
+
     async def close(self):
-        if self._analysis_task is not None and not self._analysis_task.done():
-            self._analysis_task.cancel()
-            await asyncio.gather(self._analysis_task, return_exceptions=True)
+        tasks = [state.task for state in self._analyses.values() if state.task and not state.task.done()]
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
         if self._event_store:
             self._event_store.close()
 
@@ -349,7 +404,7 @@ class LiveFeedService:
                 ]
 
     async def get_source_articles(self, category="business"):
-        """Attributed provider text for the trading risk overlay; no LLM call."""
+        """Attributed provider text for local research; no LLM call."""
         return await asyncio.wait_for(self._get_feed(category), timeout=25)
 
     async def get_feed(self, category):
@@ -358,9 +413,30 @@ class LiveFeedService:
         except asyncio.TimeoutError:
             raise FeedUnavailable("News provider timed out. Please retry after the next refresh.") from None
 
+    @staticmethod
+    def _curate_finance(articles, status):
+        """Prefer verified catalysts while keeping an explicitly unassessed fallback."""
+        selected, fallback = [], []
+        for article in articles:
+            analysis = article.get("analysis")
+            if article.get("analysis_selection") == "not_selected" and status == "ready":
+                continue
+            if analysis and analysis.get("relevance") in {"high", "medium"}:
+                article["curation_status"] = "selected"
+                selected.append(article)
+            elif analysis and analysis.get("relevance") == "low" and status == "ready":
+                continue
+            else:
+                article["curation_status"] = "fallback"
+                fallback.append(article)
+        selected.sort(key=lambda article: article["analysis"]["relevance"] != "high")
+        return (selected + fallback)[:10]
+
     async def _deliver_feed(self, category):
         articles = await self._get_feed(category)
-        status = self._attach_analysis(articles) if self._analyzer is not None and category == "business" else "disabled"
+        status = self._attach_analysis(articles, category) if self._analyzer is not None else "disabled"
+        if self._analyzer is not None:
+            articles = self._curate_finance(articles, status)
         for article in articles:
             # Provider text can be analyzed locally without redistributing it in the API.
             article.pop("content", None)
@@ -407,7 +483,7 @@ class LiveFeedService:
                     article["tickers"] = resolve_tickers(
                         article["title"], article["description"], article.get("tickers"),
                     )
-                if self._analyzer is not None and category == "business":
+                if self._analyzer is not None:
                     seen_at = datetime.now(timezone.utc).isoformat()
                     for article in articles:
                         url = canonical_article_url(article["url"]) or article["url"]

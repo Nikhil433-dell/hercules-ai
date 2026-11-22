@@ -273,7 +273,7 @@ async def test_local_analysis_keeps_provider_tags_and_adds_all_supported_source_
         assert len(pending["articles"]) == 2
         assert all("analysis" not in a and "content" not in a for a in pending["articles"])
         gate.set()
-        await service._analysis_task
+        await service._analyses["business"].task
         ready = await service.get_feed("business")
         assert ready["analysis_status"] == "ready"
         assert len(observed_urls) == 2
@@ -300,7 +300,7 @@ async def test_ollama_failure_keeps_finance_available_and_retries_after_cooldown
     service = LiveFeedService(fetcher, analyzer=analyzer, clock=lambda: clock[0])
     try:
         await service.get_feed("business")
-        await service._analysis_task
+        await service._analyses["business"].task
         fallback = await service.get_feed("business")
         assert fallback["analysis_status"] == "unavailable"
         assert fallback["articles"][0]["tickers"] == ["MSFT"]
@@ -308,7 +308,7 @@ async def test_ollama_failure_keeps_finance_available_and_retries_after_cooldown
         analyzer.analyze.assert_awaited_once()
         clock[0] += 61
         assert (await service.get_feed("business"))["analysis_status"] == "pending"
-        await service._analysis_task
+        await service._analyses["business"].task
         assert analyzer.analyze.await_count == 2
     finally:
         await service.close()
@@ -338,13 +338,32 @@ async def test_opened_macro_story_can_be_analyzed_after_missing_the_shortlist():
     listings = httpx.MockTransport(lambda request: httpx.Response(200, text=""))
     service = LiveFeedService(fetcher, analyzer=analyzer, transport=listings)
     await service.get_feed("business")
-    await service._analysis_task
-    assert "analysis" not in (await service.get_feed("business"))["articles"][0]
+    await service._analyses["business"].task
+    assert (await service.get_feed("business"))["articles"] == []
     assert (await service.analyze_article("https://unseen.example"))["analysis_status"] == "expired"
     detail = await service.analyze_article(url)
     assert detail["analysis_status"] == "ready"
     assert detail["articles"][0]["analysis"]["event_type"] == "macro"
     assert detail["articles"][0]["tickers"] == []
-    assert "analysis" not in (await service.get_feed("business"))["articles"][0]
+    assert (await service.get_feed("business"))["articles"][0]["analysis"]["event_type"] == "macro"
     assert (await service.analyze_article(url)) == detail
     assert calls == [True, False]
+
+
+@pytest.mark.parametrize("status", ["ready", "pending", "unavailable"])
+def test_finance_curation_prioritizes_material_events_and_keeps_fallback(status):
+    articles = [
+        {"title": "Unassessed"},
+        {"title": "Routine", "analysis": {"relevance": "low"}},
+        {"title": "Weaker event", "analysis": {"relevance": "medium"}},
+        {"title": "Material event", "analysis": {"relevance": "high"}},
+    ]
+    result = LiveFeedService._curate_finance(articles, status)
+    assert [a["title"] for a in result[:3]] == ["Material event", "Weaker event", "Unassessed"]
+    assert [a["curation_status"] for a in result[:3]] == ["selected", "selected", "fallback"]
+    assert (len(result) == 3) == (status == "ready")
+
+
+def test_finance_curation_bounds_fallback_and_allows_empty_ready_selection():
+    assert len(LiveFeedService._curate_finance([{"title": str(i)} for i in range(20)], "unavailable")) == 10
+    assert LiveFeedService._curate_finance([{"analysis": {"relevance": "low"}}], "ready") == []

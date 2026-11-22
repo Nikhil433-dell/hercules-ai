@@ -1,5 +1,8 @@
 # 🧠 Hercules AI — Personal Intelligence Dashboard
 
+> Historical design proposal. Phase labels, example configurations and schedules below reflect the original plan. For implemented features and current priorities, use the [README](../README.md) and [analyst roadmap](ROADMAP.md).
+
+
 > An AI-powered Mac desktop agent that delivers personalized news briefings **and** earnings
 > intelligence on every system wake. Built with Electron, FastAPI, LangChain, Ollama (local LLM),
 > and Docker.

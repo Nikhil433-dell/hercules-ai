@@ -65,7 +65,7 @@ async def test_shortlist_and_detail_preserve_source_identity_quotes_and_order():
                      for key, story in (("a0", ARTICLE), ("a1", OTHER))]
     assert second == {"id": "a0", **{field: ARTICLE[field] for field in ("title", "description", "content")}}
     assert analyzed["url"] == ARTICLE["url"] and analyzed["quotes"] == ARTICLE["quotes"]
-    assert "analysis" not in ARTICLE and untouched == OTHER
+    assert "analysis" not in ARTICLE and untouched == {**OTHER, "analysis_selection": "not_selected"}
     assert analyzed["analysis"]["evidence"] == ARTICLE["description"]
     assert analyzed["analysis"]["evidence_scope"] == "provider_snippet"
     assert analyzed["analysis"]["companies"][0]["name"] == "Microsoft"
@@ -95,7 +95,9 @@ async def test_real_excerpt_survives_wrong_model_field_label():
     )))
     result = (await service.analyze([article]))[0]["analysis"]
     assert result["evidence_scope"] == "provider_snippet"
-    assert result["companies"] == [{"name": "Microsoft", "relationship": "direct", "evidence": article["description"]}]
+    assert result["companies"] == [{"name": "Microsoft", "relationship": "direct", "evidence": article["description"],
+                                    "direction": "uncertain", "impact_score": 0, "confidence": "low",
+                                    "risks": [], "horizon": "uncertain"}]
 
 
 @pytest.mark.asyncio
@@ -121,8 +123,8 @@ async def test_empty_shortlist_is_ready_and_does_not_fetch_detail():
         return reply({"candidate_ids": []})
 
     service = analyzer(handle)
-    assert await service.analyze([ARTICLE]) == [ARTICLE]
-    assert await service.analyze([ARTICLE]) == [ARTICLE]
+    assert await service.analyze([ARTICLE]) == [{**ARTICLE, "analysis_selection": "not_selected"}]
+    assert await service.analyze([ARTICLE]) == [{**ARTICLE, "analysis_selection": "not_selected"}]
     assert service.last_status == "ready"
     assert len(calls) == 1
 
@@ -186,3 +188,55 @@ async def test_concurrent_analysis_shares_cache_and_changed_source_invalidates_i
     assert (await service.analyze([ARTICLE])) == second
     await service.analyze([{**ARTICLE, "content": "The article text was updated."}])
     assert len(calls) == 4
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("direction, score, expected", [
+    ("positive", 2, "positive"), ("negative", -1, "negative"),
+    ("mixed", 0, "mixed"), ("neutral", 0, "neutral"),
+    ("positive", -2, "uncertain"), ("negative", 0, "uncertain"),
+])
+async def test_company_impact_is_consistent_and_snippet_confidence_bounded(direction, score, expected):
+    company = {**candidate()["companies"][0], "direction": direction, "impact_score": score,
+               "confidence": "high", "horizon": "short_term",
+               "risks": ["https://unsafe.example", "The stock will reach $900."]}
+    service = analyzer(responds_with(candidate(companies=[company])))
+    result = (await service.analyze([ARTICLE]))[0]["analysis"]["companies"][0]
+    assert result["direction"] == expected
+    assert result["impact_score"] == (0 if expected == "uncertain" else score)
+    assert result["confidence"] == ("low" if expected == "uncertain" else "medium")
+    assert result["horizon"] == ("uncertain" if expected == "uncertain" else "short_term")
+    assert result["risks"] == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("extra", [{"impact_score": 3}, {"impact_score": True},
+                                     {"risks": ["Risk"] * 4}, {"risks": ["x" * 161]},
+                                     {"direction": "buy"}])
+async def test_invalid_impact_payload_fails_closed(extra):
+    company = {**candidate()["companies"][0], **extra}
+    service = analyzer(responds_with(candidate(companies=[company])))
+    assert await service.analyze([ARTICLE]) == [ARTICLE]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("text, accepted", [
+    ("Microsoft appeared alongside Apple in the report.", False),
+    ("Microsoft signed a supply agreement with Apple.", True),
+])
+async def test_indirect_company_requires_explicit_relationship_excerpt(text, accepted):
+    article = {**ARTICLE, "description": text}
+    evidence = {"field": "description", "excerpt": text}
+    company = {"name": "Apple", "relationship": "indirect", "evidence": evidence,
+               "connection": "The supply agreement could affect Apple's business."}
+    service = analyzer(responds_with(candidate(evidence=evidence, companies=[company])))
+    result = (await service.analyze([article]))[0]["analysis"]
+    assert bool(result["companies"]) == accepted
+
+
+@pytest.mark.asyncio
+async def test_evidence_beyond_provider_text_limit_is_rejected():
+    article = {**ARTICLE, "content": "x" * 1600 + " Microsoft announced a merger with Apple."}
+    evidence = {"field": "content", "excerpt": "Microsoft announced a merger with Apple."}
+    service = analyzer(responds_with(candidate(evidence=evidence)))
+    assert await service.analyze([article]) == [article]

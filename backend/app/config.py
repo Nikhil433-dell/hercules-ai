@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     OLLAMA_MODEL: str = "llama3.1:8b"
     MARKET_ANALYSIS_PROVIDER: Literal["auto", "ollama", "gemini", "off"] = "auto"
     GEMINI_API_KEY: SecretStr = SecretStr("")
-    GEMINI_MODEL: str = "gemini-4-carbon"
+    GEMINI_MODEL: str = "gemini-4-hydrogen"
 
     # Infrastructure
     REDIS_URL: str = "redis://localhost:6379/0"
