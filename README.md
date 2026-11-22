@@ -4,7 +4,7 @@ Hercules is a macOS menu-bar widget for analysts following company news. Open **
 
 [Project website](https://nikhil433-dell.github.io/hercules-ai/) · [Download desktop preview 1.0.2](https://github.com/Nikhil433-dell/hercules-ai/releases/tag/preview-1.0.2) · [Roadmap](docs/ROADMAP.md)
 
-**Version guide.** Preview 1.0.2 provides the downloadable news widget. Run the desktop and backend from this branch together to use the current company dossier, model-led curation and stock-thesis features. The screenshots and walkthrough on the website illustrate the preview with sample stories.
+**Version guide.** Preview 1.0.2 provides the downloadable news widget. Run the desktop and backend from this branch together to use the current company dossier, model-led curation and stock-thesis features. The [recorded NVIDIA walkthrough](https://nikhil433-dell.github.io/hercules-ai/#walkthrough) follows a saved article through the current source build’s company dossier, technicals, fundamentals, risks and research sources.
 
 ## An analyst’s day with Hercules
 

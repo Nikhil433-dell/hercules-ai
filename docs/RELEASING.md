@@ -52,3 +52,12 @@ For an explicitly labeled preview, run the workflow manually and set
 GitHub build and upload large installers directly when a local connection cannot
 transfer release assets reliably. The workflow keeps the release a draft until
 it is deliberately published.
+
+### Refresh the website recording
+
+The showcase renders the desktop React interface in an isolated Chrome session. A dated snapshot supplies the feed and research responses. Only screenshots, the MP4 and its chapter track go on the public site.
+
+1. With the backend configured, choose a verified ticker with an earlier story in the local event history. From `backend/`, run `venv/bin/python ../desktop/showcase/snapshot.py NVDA`. This fetches quotes and requests a thesis from the configured Gemini model.
+2. From `desktop/`, install the desktop dependencies with `npm ci` and the recording tools with `npm ci --prefix showcase`. Install Chrome and make FFmpeg available on the path, or set `HERCULES_FFMPEG` to its executable.
+3. Run `node showcase/build.cjs` and then `node showcase/render.cjs`. The recorder opens the saved story, clicks its research controls and exports the film and 3× screenshots to `website/assets/`.
+4. Verify the captions, publication date and image descriptions against the captured story. Check playback and seeking before publishing the Pages update.

@@ -1,0 +1,31 @@
+body {
+  background: radial-gradient(ellipse at 82% 45%, #38443b 0, #242e28 31%, #171d19 62%, #111613 100%);
+}
+.film-bar {
+  height: 30px; border-bottom: 1px solid #ecfff21c; background: #162019ce;
+  color: #e9f0e8; display: flex; align-items: center; padding-left: 28px; font-size: 12px; font-weight: 650;
+}
+#tray {
+  position: absolute; right: 62px; top: 2px; width: 34px; height: 25px; border-radius: 6px;
+  font-size: 18px; font-weight: 780; color: #ecf4ea; background: #dae9d21b;
+}
+.film-copy { position: absolute; left: 5.4%; width: 39%; top: 48%; transform: translateY(-50%); }
+.film-kicker, .film-foot { font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.6px; color: #b7cbb6; }
+#headline { margin: 18px 0; color: #f1f3e9; font: 500 54px/.99 Georgia, serif; letter-spacing: -2.4px; text-wrap: balance; }
+#caption { color: #c0cbc0; font-size: 16px; line-height: 1.55; max-width: 330px; text-wrap: pretty; }
+.film-foot { position: absolute; bottom: 28px; left: 5.4%; display: flex; gap: 12px; align-items: center; font-size: 8px; letter-spacing: 1px; }
+.film-line { width: 31px; height: 1px; background: #a1bb9d; }
+#product {
+  position: absolute; right: 5%; top: 39px; width: 420px; height: 482px;
+  transform: translateZ(0); border-radius: 12px; background: #262a28;
+  box-shadow: 0 15px 50px #08110ab0; overflow: hidden;
+}
+#product[data-view="panel"] { width: 355px; }
+#product[data-view="popup"] { width: 300px; height: 175px; }
+#product:not([hidden]) { animation: appear .28s ease-out; }
+@keyframes appear { from { opacity: 0; translate: 0 -4px; } }
+#pointer { pointer-events: none; position: absolute; top: 0; left: 0; z-index: 5; transform: translate(500px, 95px); transition: transform .48s cubic-bezier(.28,.7,.3,1); filter: drop-shadow(0 1px 2px #0008); }
+#pointer.pressed::before { content: ''; position: absolute; width: 20px; height: 20px; top: -9px; left: -9px; border: 2px solid #d9efcf; border-radius: 50%; animation: click-ring .48s ease-out both; }
+@keyframes click-ring { from { transform: scale(.35); opacity: 1; } to { transform: scale(1.8); opacity: 0; } }
+
+#scene { position: absolute; inset: 0 auto auto 0; width: 960px; height: 540px; transform: scale(2); transform-origin: top left; }
